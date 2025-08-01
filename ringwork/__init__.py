@@ -83,7 +83,7 @@ app = rio.App(
     build=HomePage,
     name=__project__,
     description=__description__,
-    icon=Path(__file__).parent / "assets" / "locker.ico",
+    icon=Path(__file__).parent / "assets" / "favicon.ico",
     # This function will be called once the app is ready.
     #
     # `rio run` will also call it again each time the app is reloaded.
