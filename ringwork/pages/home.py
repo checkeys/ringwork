@@ -1,17 +1,29 @@
 import rio
 
+from ringwork.components.navbar import Navbar
 
-def guard(event: rio.GuardEvent) -> str | None:
-    return
+
+class RootComponent(rio.Component):
+
+    def build(self) -> rio.Component:
+        return rio.Column(
+            # The navbar contains a `rio.Overlay`, so it will always be on top
+            # of all other components.
+            Navbar(min_height=10.0),
+            # The page view will display the content of the current page.
+            rio.PageView(
+                # Make sure the page view takes up all available space. Without
+                # this the navbar would be assigned the same space as the page
+                # content.
+                grow_y=True,
+            ),
+        )
 
 
 @rio.page(name="Home", url_segment="")
-class InnerAppPage(rio.Component):
+class HomePage(rio.Component):
     def build(self) -> rio.Component:
         return rio.Column(
-            # rio.PageView(
-            #     grow_y=True,
-            # ),
             rio.Markdown(
                 """
 # Buzzwordz Inc.!

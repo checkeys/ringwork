@@ -4,14 +4,12 @@ from datetime import timezone
 from pathlib import Path
 
 import rio
-# from . import data_models
-# from . import persistence
 from xpw import AuthInit
 from xpw import TokenAuth
 
 from ringwork.attribute import __description__
 from ringwork.attribute import __project__
-from ringwork.components import RootComponent
+from ringwork.pages.home import HomePage
 
 
 async def on_app_start(app: rio.App) -> None:
@@ -82,24 +80,17 @@ theme = rio.Theme.from_colors(
 
 # Create the Rio app
 app = rio.App(
+    build=HomePage,
     name=__project__,
     description=__description__,
     icon=Path(__file__).parent / "assets" / "locker.ico",
-    default_attachments=[],
     # This function will be called once the app is ready.
     #
     # `rio run` will also call it again each time the app is reloaded.
     on_app_start=on_app_start,
     # This function will be called each time a user connects
     on_session_start=on_session_start,
-    # You can optionally provide a root component for the app. By default,
-    # Rio's default navigation is used. By providing your own component, you
-    # can create components which stay put while the user navigates between
-    # pages, such as a navigation bar or footer.
-    #
-    # When you do this, make sure your component contains a `rio.PageView`
-    # so the currently active page is still visible.
-    build=RootComponent,
-    theme=theme,
+    default_attachments=[],
     assets_dir=Path(__file__).parent / "assets",
+    theme=theme,
 )
