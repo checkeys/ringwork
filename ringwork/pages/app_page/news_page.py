@@ -3,10 +3,7 @@ import rio
 from ... import components as comps
 
 
-@rio.page(
-    name="NewsPage",
-    url_segment="news-page",
-)
+@rio.page(name="NewsPage", url_segment="news-page")
 class NewsPage(rio.Component):
     """A sample page, containing recent news articles about the company."""
 

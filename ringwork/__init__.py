@@ -9,6 +9,7 @@ import rio
 from xpw import AuthInit
 from xpw import TokenAuth
 
+from ringwork.attribute import __description__
 from ringwork.attribute import __project__
 from ringwork.components import RootComponent
 
@@ -82,6 +83,8 @@ theme = rio.Theme.from_colors(
 # Create the Rio app
 app = rio.App(
     name=__project__,
+    description=__description__,
+    icon=Path(__file__).parent / "assets" / "locker.ico",
     default_attachments=[],
     # This function will be called once the app is ready.
     #

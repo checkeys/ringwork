@@ -25,21 +25,20 @@ class Navbar(rio.Component):
         self.force_refresh()
 
     async def on_logout(self) -> None:
-        return
-        user_session = self.session[data_models.UserSession]
+        # user_session = self.session[data_models.UserSession]
 
-        # Expire the session
-        pers = self.session[persistence.Persistence]
+        # # Expire the session
+        # pers = self.session[persistence.Persistence]
 
-        await pers.update_session_duration(
-            user_session,
-            new_valid_until=datetime.now(tz=timezone.utc),
-        )
+        # await pers.update_session_duration(
+        #     user_session,
+        #     new_valid_until=datetime.now(tz=timezone.utc),
+        # )
 
-        # Detach everything from the session. This informs all components that
-        # nobody is logged in.
-        self.session.detach(data_models.AppUser)
-        self.session.detach(data_models.UserSession)
+        # # Detach everything from the session. This informs all components that
+        # # nobody is logged in.
+        # self.session.detach(data_models.AppUser)
+        # self.session.detach(data_models.UserSession)
 
         # Navigate to the login page to prevent the user being on a page that is
         # prohibited without being logged in.
@@ -90,7 +89,7 @@ class Navbar(rio.Component):
         navbar_content.add(
             rio.Link(
                 rio.IconButton(
-                    "rio/logo",
+                    icon="rio/logo",
                     style="plain-text",
                     min_size=2.5,
                 ),
@@ -112,7 +111,7 @@ class Navbar(rio.Component):
             navbar_content.add(
                 rio.Link(
                     rio.Button(
-                        "Home",
+                        content="Home",
                         icon="material/news",
                         style=(
                             "major"
@@ -128,7 +127,7 @@ class Navbar(rio.Component):
             navbar_content.add(
                 rio.Link(
                     rio.Button(
-                        "News",
+                        content="News",
                         icon="material/news",
                         style=(
                             "major"
@@ -144,7 +143,7 @@ class Navbar(rio.Component):
             navbar_content.add(
                 rio.Link(
                     rio.Button(
-                        "About",
+                        content="About",
                         icon="material/info",
                         style=(
                             "major"
@@ -159,7 +158,7 @@ class Navbar(rio.Component):
             # Logout
             navbar_content.add(
                 rio.Button(
-                    "Logout",
+                    content="Logout",
                     icon="material/logout",
                     style="plain-text",
                     on_press=self.on_logout,

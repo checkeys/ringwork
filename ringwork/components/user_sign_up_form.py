@@ -1,12 +1,4 @@
-from __future__ import annotations
-
-import typing as t
-from dataclasses import KW_ONLY, field
-
 import rio
-
-from .. import components as comps
-# from .. import data_models, persistence
 
 
 class UserSignUpForm(rio.Component):
@@ -181,4 +173,3 @@ class UserSignUpForm(rio.Component):
             min_width=24 if desktop_layout else 0,
             align_y=0.5,
         )
-
