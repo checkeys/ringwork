@@ -8,6 +8,7 @@ from typing import Optional
 import rio
 from xpw_keys import SSHKeyPair
 from xpw_keys import SSHKeyRing
+from xpw_keys import SSHKeyType
 
 
 @dataclasses.dataclass
@@ -23,13 +24,11 @@ class MenuItem:
 
     fingerprint: str
     comment: str
-    type: str
+    private: str
+    public: str
+    type: SSHKeyType
     bits: int
     name: str
-
-    @property
-    def attributes(self) -> str:
-        return f"{self.type}, {self.bits}, {self.comment}"
 
     def copy(self) -> "MenuItem":
         """Creates a copy of the MenuItem object."""
@@ -38,12 +37,23 @@ class MenuItem:
     @classmethod
     def empty(cls) -> "MenuItem":
         """Creates a new empty MenuItem object."""
-        return cls(fingerprint="", comment="", type="", bits=0, name="")
+        return cls(fingerprint="",
+                   comment="",
+                   private="",
+                   public="",
+                   type="",
+                   bits=4096,
+                   name="")
 
     @classmethod
     def create(cls, name: str, pair: SSHKeyPair) -> "MenuItem":
-        return cls(fingerprint=pair.fingerprint, comment=pair.comment,
-                   type=pair.type, bits=pair.bits, name=name)
+        return cls(fingerprint=pair.fingerprint,
+                   comment=pair.comment,
+                   private=pair.private,
+                   public=pair.public,
+                   type=pair.type,
+                   bits=pair.bits,
+                   name=name)
 
 
 @rio.page(name="SSH keys", url_segment="ssh")
@@ -376,7 +386,7 @@ class SSHPage(rio.Component):
         """
 
         # Store all children in an intermediate list
-        list_items = []
+        list_items: List[rio.Component] = []
 
         # list_items.append(
         #     rio.SimpleListItem(
@@ -396,23 +406,24 @@ class SSHPage(rio.Component):
         for i, item in enumerate(self.menu_items):
             list_items.append(
                 rio.SimpleListItem(
-                    text=item.fingerprint,
-                    secondary_text=item.attributes,
+                    text=item.name,
+                    secondary_text=item.fingerprint,
                     # left_child=rio.Checkbox(on_change=None),
                     left_child=rio.Icon(
                         "material/key",
                         fill="success",
-                        min_height=2.0,
-                        min_width=2.0
+                        min_height=2.5,
+                        min_width=2.5
                     ),
-                    right_child=rio.IconButton(
-                        "material/delete",
+                    right_child=rio.Button(
+                        content="Delete",
+                        icon="material/delete",
                         color="danger",
+                        shape="rounded",
                         style="minor",
-                        min_size=2.0,
                         on_press=functools.partial(
                             self.on_press_delete_item, i
-                        )
+                        ),
                     ),
                     # Use the name as the key to ensure that the list item
                     # is unique.
@@ -428,13 +439,16 @@ class SSHPage(rio.Component):
         # Then unpack the list to pass the children to the ListView
         return rio.Column(
             rio.Row(
+                rio.Text(text="SSH keys", style="heading2"),
                 rio.Spacer(),
                 rio.Button(
                     content="New SSH key",
+                    icon="material/add",
                     color="success",
                     shape="rounded",
                     style="minor",
                     on_press=self.on_spawn_dialog_add_new_menu_item,
+                    min_height=2.5,
                 ),
                 margin_bottom=1,
             ),
@@ -443,6 +457,7 @@ class SSHPage(rio.Component):
                 style=self.banner_style,
                 margin_bottom=1,
             ),
+            # rio.Text(text="Authentication keys", margin_bottom=1),
             rio.ListView(
                 *list_items,
                 align_y=0,
