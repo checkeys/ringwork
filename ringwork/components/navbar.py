@@ -77,15 +77,15 @@ class Navbar(rio.Component):
         navbar_content.add(
             rio.Link(
                 rio.Button(
-                    content="List",
-                    icon="material/list_alt",
+                    content="SSH",
+                    icon="material/key",
                     style=(
                         "major"
-                        if active_page_url_segment == "list"
+                        if active_page_url_segment == "ssh"
                         else "plain-text"
                     ),
                 ),
-                target_url="/list",
+                target_url="/ssh",
             )
         )
 
@@ -99,62 +99,22 @@ class Navbar(rio.Component):
             )
         )
 
-        # # Based on the user's status, display the appropriate buttons
-        # if user_settings:
-
-        #     # Same game, different button
-        #     navbar_content.add(
-        #         rio.Link(
-        #             rio.Button(
-        #                 content="News",
-        #                 icon="material/news",
-        #                 style=(
-        #                     "major"
-        #                     if active_page_url_segment == "news-page"
-        #                     else "plain-text"
-        #                 ),
-        #             ),
-        #             target_url="/news-page",
-        #         )
-        #     )
-
-        #     # Same game, different button
-        #     navbar_content.add(
-        #         rio.Link(
-        #             rio.Button(
-        #                 content="About",
-        #                 icon="material/info",
-        #                 style=(
-        #                     "major"
-        #                     if active_page_url_segment == "about-page"
-        #                     else "plain-text"
-        #                 ),
-        #             ),
-        #             target_url="/about-page",
-        #         )
-        #     )
-
-        # The navbar should appear above all other components. This is easily
-        # done by using a `rio.Overlay` component.
-        return rio.Overlay(
-            # Use a rectangle for visual separation
-            rio.Rectangle(
-                # Use the content we've built up by conditions
-                content=navbar_content,
-                # Set the fill of the rectangle to the neutral color of the
-                # theme
-                fill=self.session.theme.neutral_color,
-                # Round the corners
-                corner_radius=self.session.theme.corner_radius_medium,
-                # Add a shadow to make the navbar stand out above other content
-                shadow_radius=0.8,
-                shadow_color=self.session.theme.shadow_color,
-                shadow_offset_y=0.2,
-                # Overlay assigns the entire screen to its child component.
-                # Since the navbar isn't supposed to take up all space, align
-                # it.
-                align_y=0,
-                margin_x=2 if desktop_layout else 0.5,
-                margin_y=2,
-            ),
+        # Use a rectangle for visual separation
+        return rio.Rectangle(
+            # Use the content we've built up by conditions
+            content=navbar_content,
+            # Set the fill of the rectangle to the neutral color of the theme
+            fill=self.session.theme.neutral_color,
+            # Round the corners
+            corner_radius=self.session.theme.corner_radius_medium,
+            # Add a shadow to make the navbar stand out above other content
+            shadow_radius=0.8,
+            shadow_color=self.session.theme.shadow_color,
+            shadow_offset_y=0.2,
+            # Overlay assigns the entire screen to its child component.
+            # Since the navbar isn't supposed to take up all space, align
+            # it.
+            align_y=0,
+            margin_x=2 if desktop_layout else 0.5,
+            margin_y=2,
         )

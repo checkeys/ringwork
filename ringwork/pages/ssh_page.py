@@ -6,9 +6,13 @@ from typing import Literal
 from typing import Optional
 
 import rio
+from xpw import Account
 from xpw_keys import SSHKeyPair
 from xpw_keys import SSHKeyRing
 from xpw_keys import SSHKeyType
+
+# from ringwork.components.user import Restrict
+from ringwork.components.user import UserSettings
 
 
 @dataclasses.dataclass
@@ -41,7 +45,7 @@ class MenuItem:
                    comment="",
                    private="",
                    public="",
-                   type="",
+                   type="rsa",
                    bits=4096,
                    name="")
 
@@ -56,7 +60,128 @@ class MenuItem:
                    name=name)
 
 
-@rio.page(name="SSH keys", url_segment="ssh")
+class SelectListView(rio.Component):
+
+    item: MenuItem
+
+    def build(self) -> rio.Component:
+        return rio.ListView(
+            rio.HeadingListItem(text=self.item.name, key="heading"),
+            rio.SeparatorListItem(),
+            rio.CustomListItem(
+                content=rio.Row(
+                    rio.Column(
+                        rio.Text(
+                            "Private key",
+                            justify="left",
+                            selectable=False,
+                        ),
+                        rio.ScrollContainer(
+                            content=rio.Text(
+                                self.item.private,
+                                style="dim",
+                                justify="left",
+                                selectable=False,
+                            ),
+                            scroll_x="never",
+                            scroll_y="auto",
+                        ),
+                        spacing=0.5,
+                        grow_x=True,
+                        align_y=0.5,  # In case too much space is allocated
+                    ),
+                    rio.IconButton(
+                        icon="material/download",
+                        on_press=lambda: self.session.save_file(
+                            file_contents=self.item.private,
+                            file_name=f"{self.item.name}.key",
+                        ),
+                        style="plain",
+                        min_size=3.0,
+                    ),
+                    rio.IconButton(
+                        icon="material/content_copy",
+                        on_press=lambda: self.session.set_clipboard(
+                            self.item.private
+                        ),
+                        style="plain",
+                        min_size=3.0,
+                    ),
+                    grow_x=True,
+                ),
+                key="private",
+            ),
+            rio.SeparatorListItem(),
+            rio.CustomListItem(
+                content=rio.Row(
+                    rio.Column(
+                        rio.Text(
+                            "Public key",
+                            justify="left",
+                            selectable=False,
+                        ),
+                        rio.Text(
+                            self.item.public,
+                            overflow="ellipsize",
+                            style="dim",
+                            justify="left",
+                            selectable=False,
+                        ),
+                        spacing=0.5,
+                        grow_x=True,
+                        align_y=0.5,  # In case too much space is allocated
+                    ),
+                    rio.IconButton(
+                        icon="material/download",
+                        on_press=lambda: self.session.save_file(
+                            file_contents=self.item.public,
+                            file_name=f"{self.item.name}.pub",
+                        ),
+                        style="plain",
+                        min_size=3.0,
+                    ),
+                    rio.IconButton(
+                        icon="material/content_copy",
+                        on_press=lambda: self.session.set_clipboard(
+                            self.item.public
+                        ),
+                        style="plain",
+                        min_size=3.0,
+                    ),
+                    grow_x=True,
+                ),
+                key="public",
+            ),
+            rio.SeparatorListItem(),
+            # rio.SimpleListItem(
+            #     text="Fingerprint",
+            #     secondary_text=self.item.fingerprint,
+            #     key="fingerprint",
+            # ),
+            # rio.SeparatorListItem(),
+            # rio.SimpleListItem(
+            #     text="Comment",
+            #     secondary_text=self.item.comment,
+            #     key="comment",
+            # ),
+            # rio.SeparatorListItem(),
+            # rio.SimpleListItem(
+            #     text="Type",
+            #     secondary_text=self.item.type,
+            #     key="type",
+            # ),
+            # rio.SeparatorListItem(),
+            # rio.SimpleListItem(
+            #     text="Bits",
+            #     secondary_text=str(self.item.bits),
+            #     key="bits",
+            # ),
+            # rio.SeparatorListItem(),
+            align_y=0,
+        )
+
+
+# @rio.page(name="SSH keys", url_segment="", guard=Restrict)
 class SSHPage(rio.Component):
     """A CRUD page that allows users to create, read, update, and delete menu
     items.
@@ -89,8 +214,11 @@ class SSHPage(rio.Component):
         Fetches data from a predefined data model and assigns it to the
         menu_items attribute of the current instance.
         """
-        ring: SSHKeyRing = SSHKeyRing()
-        self.menu_items = [MenuItem.create(name, ring[name]) for name in ring]
+        account: Account = self.session[Account]
+        setting: UserSettings = self.session[UserSettings]
+        if profile := account.fetch(setting.session_id, setting.secret_key):
+            for name in (ring := SSHKeyRing(base=profile.workspace)):
+                self.menu_items.append(MenuItem.create(name, ring[name]))
 
     async def on_press_delete_item(self, idx: int) -> None:
         """
@@ -345,6 +473,39 @@ class SSHPage(rio.Component):
                 self.banner_text = "Item was NOT added"
                 self.banner_style = "danger"
 
+    async def on_press_item(self, selected_menu_item: MenuItem) -> None:
+        """Creates a dialog to display a menu item."""
+
+        def build_dialog_content() -> rio.Component:
+            return rio.Column(
+                SelectListView(item=selected_menu_item),
+                rio.Tooltip(
+                    anchor=rio.IconButton(
+                        icon="material/close",
+                        on_press=lambda: dialog.close(None),
+                        color="danger",
+                        style="minor",
+                        min_size=3.0,
+                        # align_y=1.0,
+                    ),
+                    tip="Close",
+                ),
+                spacing=1.0,
+            )
+
+        # Show the dialog
+        dialog = await self.session.show_custom_dialog(
+            build=build_dialog_content,
+            # Prevent the user from interacting with the rest of the app
+            # while the dialog is open
+            modal=True,
+            # Close the dialog if the user clicks outside of it
+            user_closable=True,
+        )
+
+        # Wait for the user to select an option
+        await dialog.wait_for_close()
+
     def build(self) -> rio.Component:
         """Builds the component to be rendered.
 
@@ -359,26 +520,31 @@ class SSHPage(rio.Component):
 
         ```
         ╔══════════════════════ Column ═══════════════════════╗
+        ║                               ┏━━━ IconButton  ━━━┓ ║
+        ║                               ┗━━━ New SSH key ━━━┛ ║
         ║ ┏━━━━━━━━━━━━━━━━━━━━ Banner ━━━━━━━━━━━━━━━━━━━━━┓ ║
         ║ ┃ "" | Item was updated | Item was added          ┃ ║
         ║ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ║
         ║ ┏━━━━━━━━━━━━━━━━━━━ ListView ━━━━━━━━━━━━━━━━━━━━┓ ║
+        ║ ┃ ┏━━━━━━━━━━━━━━━━━ HeadingListItem ━━━━━━━━━━━┓ ┃ ║
+        ║ ┃ ┃ SSH keys                                    ┃ ┃ ║
+        ║ ┃ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ┃ ║
         ║ ┃ ┏━━━━━━━━━━━━━━━━━ SimpleListItem ━━━━━━━━━━━━┓ ┃ ║
         ║ ┃ ┃ ┏━ Icon ━┓ Add new                          ┃ ┃ ║
         ║ ┃ ┃ ┗━━━━━━━━┛ Description                      ┃ ┃ ║
         ║ ┃ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ┃ ║
         ║ ┃ ┏━━━━━━━━━━━━━━━━━ SimpleListItem ━━━━━━━━━━━━┓ ┃ ║
-        ║ ┃ ┃ Item 1                          ┏━ Text ━┓  ┃ ┃ ║
-        ║ ┃ ┃ Description                     ┗━━━━━━━━┛  ┃ ┃ ║
+        ║ ┃ ┃ ┏━ Icon ━┓ Item 1         ┏━ IconButton ━┓  ┃ ┃ ║
+        ║ ┃ ┃ ┗━━━━━━━━┛ Fingerprint    ┗━━━ Delete ━━━┛  ┃ ┃ ║
         ║ ┃ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ┃ ║
         ║ ┃ ┏━━━━━━━━━━━━━━━━━ SimpleListItem ━━━━━━━━━━━━┓ ┃ ║
-        ║ ┃ ┃ Item 2                          ┏━ Text ━┓  ┃ ┃ ║
-        ║ ┃ ┃ Description                     ┗━━━━━━━━┛  ┃ ┃ ║
+        ║ ┃ ┃ ┏━ Icon ━┓ Item 2         ┏━ IconButton ━┓  ┃ ┃ ║
+        ║ ┃ ┃ ┗━━━━━━━━┛ Fingerprint    ┗━━━ Delete ━━━┛  ┃ ┃ ║
         ║ ┃ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ┃ ║
         ║ ┃ ...                                             ┃ ║
         ║ ┃ ┏━━━━━━━━━━━━━━━━━ SimpleListItem ━━━━━━━━━━━━┓ ┃ ║
-        ║ ┃ ┃ Item n                          ┏━ Text ━┓  ┃ ┃ ║
-        ║ ┃ ┃ Description                     ┗━━━━━━━━┛  ┃ ┃ ║
+        ║ ┃ ┃ ┏━ Icon ━┓ Item n         ┏━ IconButton ━┓  ┃ ┃ ║
+        ║ ┃ ┃ ┗━━━━━━━━┛ Fingerprint    ┗━━━ Delete ━━━┛  ┃ ┃ ║
         ║ ┃ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ┃ ║
         ║ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ║
         ╚═════════════════════════════════════════════════════╝
@@ -386,25 +552,10 @@ class SSHPage(rio.Component):
         """
 
         # Store all children in an intermediate list
-        list_items: List[rio.Component] = []
-
-        # list_items.append(
-        #     rio.SimpleListItem(
-        #         text="New SSH key",
-        #         key="__new_ssh_key__",
-        #         left_child=rio.Icon(icon="material/add"),
-        #         # right_child=rio.IconButton(
-        #         #     icon="material/delete",
-        #         #     style="major",
-        #         #     color="hud",
-        #         #     min_size=2.0,
-        #         # ),
-        #         on_press=self.on_spawn_dialog_add_new_menu_item,
-        #     )
-        # )
+        list_items: rio.ListView = rio.ListView(align_y=0)
 
         for i, item in enumerate(self.menu_items):
-            list_items.append(
+            list_items.add(
                 rio.SimpleListItem(
                     text=item.name,
                     secondary_text=item.fingerprint,
@@ -430,9 +581,7 @@ class SSHPage(rio.Component):
                     key=item.name,
                     # Note the use of functools.partial to pass the
                     # item to the event handler.
-                    on_press=functools.partial(
-                        self.on_spawn_dialog_edit_menu_item, item, i
-                    ),
+                    on_press=functools.partial(self.on_press_item, item),
                 )
             )
 
@@ -450,18 +599,10 @@ class SSHPage(rio.Component):
                     on_press=self.on_spawn_dialog_add_new_menu_item,
                     min_height=2.5,
                 ),
-                margin_bottom=1,
             ),
-            rio.Banner(
-                self.banner_text,
-                style=self.banner_style,
-                margin_bottom=1,
-            ),
-            # rio.Text(text="Authentication keys", margin_bottom=1),
-            rio.ListView(
-                *list_items,
-                align_y=0,
-            ),
+            rio.Banner(self.banner_text, style=self.banner_style),
+            list_items,
+            spacing=1.0,
             # align at the top
             align_y=0,
             margin=3,
