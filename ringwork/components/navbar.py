@@ -40,12 +40,7 @@ class Navbar(rio.Component):
         # Create the content of the navbar. First we create a row with a certain
         # spacing and margin.  We can use the `.add()` method to add components
         # by condition to the row.
-        navbar_content = rio.Row(spacing=1.0, margin=1.0)
-
-        # Links can be used to navigate to other pages and
-        # external URLs. You can pass either a simple string, or
-        # another component as their content.
-        navbar_content.add(
+        navbar_content = rio.Row(
             rio.Link(
                 content=rio.IconButton(
                     icon="material/home:fill",
@@ -53,7 +48,9 @@ class Navbar(rio.Component):
                     min_size=2.5,
                 ),
                 target_url="/",
-            )
+            ),
+            spacing=1.0,
+            margin=1.0,
         )
 
         # This spacer will take up any superfluous space,
@@ -71,7 +68,7 @@ class Navbar(rio.Component):
                 icon="material/logout",
                 shape="rounded",
                 color="danger",
-                style="major",
+                style="minor",
                 on_press=self.on_logout,
             )
         )
