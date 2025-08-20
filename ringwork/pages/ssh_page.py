@@ -11,7 +11,7 @@ from xpw_keys import SSHKeyPair
 from xpw_keys import SSHKeyRing
 from xpw_keys import SSHKeyType
 
-# from ringwork.components.user import Restrict
+from ringwork.components.navbar import Navbar
 from ringwork.components.user import UserSettings
 
 
@@ -181,7 +181,6 @@ class SelectListView(rio.Component):
         )
 
 
-# @rio.page(name="SSH keys", url_segment="", guard=Restrict)
 class SSHPage(rio.Component):
     """A CRUD page that allows users to create, read, update, and delete menu
     items.
@@ -220,7 +219,7 @@ class SSHPage(rio.Component):
             for name in (ring := SSHKeyRing(base=profile.workspace)):
                 self.menu_items.append(MenuItem.create(name, ring[name]))
 
-    async def on_press_delete_item(self, idx: int) -> None:
+    async def on_press_delete_item(self, index: int) -> None:
         """
         Perform actions when the "Delete" button is pressed.
 
@@ -229,8 +228,8 @@ class SSHPage(rio.Component):
         `idx`: The index of the item to be deleted.
         """
         # delete the item from the list
-        self.menu_items.pop(idx)
-        self.banner_style = "danger"
+        self.menu_items.pop(index)
+        self.banner_style = "success"
         self.banner_text = "Item was deleted"
         self.currently_selected_menu_item = None
 
@@ -564,17 +563,19 @@ class SSHPage(rio.Component):
                         "material/key",
                         fill="success",
                         min_height=2.5,
-                        min_width=2.5
+                        min_width=2.5,
                     ),
-                    right_child=rio.Button(
-                        content="Delete",
-                        icon="material/delete",
-                        color="danger",
-                        shape="rounded",
-                        style="minor",
-                        on_press=functools.partial(
-                            self.on_press_delete_item, i
+                    right_child=rio.Tooltip(
+                        anchor=rio.IconButton(
+                            icon="material/delete",
+                            color="danger",
+                            style="minor",
+                            min_size=2.5,
+                            on_press=functools.partial(
+                                self.on_press_delete_item, i
+                            ),
                         ),
+                        tip="Delete",
                     ),
                     # Use the name as the key to ensure that the list item
                     # is unique.
@@ -587,23 +588,24 @@ class SSHPage(rio.Component):
 
         # Then unpack the list to pass the children to the ListView
         return rio.Column(
-            rio.Row(
-                rio.Text(text="SSH keys", style="heading2"),
-                rio.Spacer(),
+            Navbar(
                 rio.Button(
                     content="New SSH key",
                     icon="material/add",
-                    color="success",
+                    color="secondary",
                     shape="rounded",
-                    style="minor",
+                    style="major",
                     on_press=self.on_spawn_dialog_add_new_menu_item,
-                    min_height=2.5,
                 ),
             ),
-            rio.Banner(self.banner_text, style=self.banner_style),
-            list_items,
-            spacing=1.0,
-            # align at the top
-            align_y=0,
-            margin=3,
+            rio.Column(
+                rio.Text(text="SSH keys", style="heading2"),
+                rio.Banner(self.banner_text, style=self.banner_style),
+                list_items,
+                # align at the top
+                align_y=0.0,
+                grow_y=True,
+                spacing=1.0,
+                margin_x=3.0,
+            ),
         )
