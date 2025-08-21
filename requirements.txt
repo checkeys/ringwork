@@ -1,5 +1,5 @@
 xkits-command>=0.4
-xkeys>=0.5.2
+xkeys>=0.5.3
 xhtm>=0.11
 xpw>=0.14
 rio-ui

@@ -1,80 +1,60 @@
-import copy
 import dataclasses
 import functools
-from typing import List
+from typing import Dict
 from typing import Literal
-from typing import Optional
 from typing import get_args  # noqa:H306
 
 import rio
 from xpw import Account
+from xpw_keys import SSHKeyAlgo
 from xpw_keys import SSHKeyPair
 from xpw_keys import SSHKeyRing
-from xpw_keys import SSHKeyType
 
 from ringwork.components.navbar import Navbar
 from ringwork.components.user import UserSettings
 
-SSHKeyTypeOptions = {key.upper(): key for key in get_args(SSHKeyType)}
+SSHKeyTypeOptions = {key.upper(): key for key in get_args(SSHKeyAlgo)}
 
 
 @dataclasses.dataclass
-class KeyItem:
-    """KeyItem data model."""
+class SSHKeyItem:
+    """SSHKeyItem data model."""
 
+    algorithm: SSHKeyAlgo
     fingerprint: str
     comment: str
     private: str
     public: str
-    type: SSHKeyType
     bits: int
     name: str
 
-    def copy(self) -> "KeyItem":
-        """Creates a copy of the KeyItem object."""
-        return copy.copy(self)
-
     @classmethod
-    def empty(cls) -> "KeyItem":
-        """Creates a new empty KeyItem object."""
-        return cls(fingerprint="",
+    def empty(cls) -> "SSHKeyItem":
+        """Creates a new empty SSHKeyItem object."""
+        return cls(algorithm="rsa",
+                   fingerprint="",
                    comment="",
                    private="",
                    public="",
-                   type="rsa",
                    bits=4096,
                    name="")
 
     @classmethod
-    def create(cls, name: str, pair: SSHKeyPair) -> "KeyItem":
-        return cls(fingerprint=pair.fingerprint,
+    def create(cls, name: str, pair: SSHKeyPair) -> "SSHKeyItem":
+        return cls(algorithm=pair.algo,
+                   fingerprint=pair.fingerprint,
                    comment=pair.comment,
                    private=pair.private,
                    public=pair.public,
-                   type=pair.type,
                    bits=pair.bits,
                    name=name)
 
 
 class KeyItemComponent(rio.Component):
-    """Displays a single `KeyItem`."""
+    """Displays a single `SSHKeyItem`."""
 
-    item: KeyItem
-    # on_completed: rio.EventHandler[[]] = None
+    item: SSHKeyItem
     on_delete: rio.EventHandler[[]] = None
-
-    # async def _mark_as_completed(self) -> None:
-    #     # If it's already completed, there's nothing to do
-    #     if self.todo_item.completed:
-    #         return
-
-    #     self.todo_item.completed = True
-    #     await self.call_event_handler(self.on_completed)
-
-    #     # Rio doesn't know that we modified the TodoItem, so it won't
-    #     # automatically rebuild this component. We have to manually trigger a
-    #     # rebuild.
-    #     self.force_refresh()
 
     def build_list_view(self) -> rio.Component:
         return rio.ListView(
@@ -106,7 +86,7 @@ class KeyItemComponent(rio.Component):
                         icon="material/download",
                         on_press=lambda: self.session.save_file(
                             file_contents=self.item.private,
-                            file_name=f"{self.item.name}.key",
+                            file_name=f"{self.item.name}",
                         ),
                         style="plain-text",
                         min_size=3.0,
@@ -178,9 +158,9 @@ class KeyItemComponent(rio.Component):
             # ),
             # rio.SeparatorListItem(),
             # rio.SimpleListItem(
-            #     text="Type",
-            #     secondary_text=self.item.type,
-            #     key="type",
+            #     text="Algorithm",
+            #     secondary_text=self.item.algo,
+            #     key="algorithm",
             # ),
             # rio.SeparatorListItem(),
             # rio.SimpleListItem(
@@ -247,7 +227,7 @@ class KeyItemComponent(rio.Component):
                         icon="material/delete",
                         on_press=self.on_delete,
                         color="danger",
-                        style="minor",
+                        style="major",
                         min_size=2.5,
                     ),
                     tip="Delete",
@@ -262,16 +242,18 @@ class KeyItemComponent(rio.Component):
         )
 
 
-class AddKeyItemComponent(rio.Component):
-    """Displays a single `KeyItem`."""
+class CreateComponent(rio.Component):
+    """Displays a single `SSHKeyItem`."""
 
-    item: KeyItem
-    on_save: rio.EventHandler[[]] = None
+    item: SSHKeyItem
+    on_finish: rio.EventHandler[[]] = None
 
     sync_name: bool = True
     sync_comment: bool = True
 
-    def on_change_name(self, ev: rio.TextInputChangeEvent) -> None:
+    banner_text: str = ""
+
+    def _on_change_name(self, ev: rio.TextInputChangeEvent) -> None:
         self.sync_name = not ev.text
         self.item.name = ev.text
 
@@ -279,7 +261,7 @@ class AddKeyItemComponent(rio.Component):
             self.item.comment = ev.text
             self.force_refresh()
 
-    def on_change_comment(self, ev: rio.TextInputChangeEvent) -> None:
+    def _on_change_comment(self, ev: rio.TextInputChangeEvent) -> None:
         self.sync_comment = not ev.text
         self.item.comment = ev.text
 
@@ -287,102 +269,160 @@ class AddKeyItemComponent(rio.Component):
             self.item.name = ev.text
             self.force_refresh()
 
+    def _on_change_algorithm(self, ev: rio.DropdownChangeEvent) -> None:
+        self.item.algorithm = ev.value
+        if ev.value == "rsa":
+            self.item.bits = 4096
+        self.force_refresh()
+
+    async def _on_save(self) -> None:
+        if not self.item.name:
+            self.banner_text = "Please enter a name"
+            return self.force_refresh()
+
+        if not self.item.comment:
+            self.banner_text = "Please enter a comment"
+            return self.force_refresh()
+
+        account: Account = self.session[Account]
+        setting: UserSettings = self.session[UserSettings]
+        if not (profile := account.fetch(setting.session_id, setting.secret_key)):  # noqa:E501
+            self.banner_text = "Login required"
+            return self.force_refresh()
+
+        if self.item.name in (ring := SSHKeyRing(base=profile.workspace)):
+            self.banner_text = "SSH key already exists"
+            return self.force_refresh()
+
+        try:
+            if not ring.generate(algo=self.item.algorithm, bits=self.item.bits,
+                                 name=self.item.name, comment=self.item.comment):  # noqa:E501
+                self.banner_text = "Failed to generate SSH key"
+                return self.force_refresh()
+        except Exception as error:
+            self.banner_text = str(error)
+            return self.force_refresh()
+
+        await self.call_event_handler(self.on_finish)
+
     def build(self) -> rio.Component:
-        return rio.Column(
+        content = rio.Column(
             rio.Text(
-                text="Add SSH key",
+                text="Generate new SSH key",
                 style="heading2",
             ),
+            rio.Banner(text=self.banner_text, style="danger"),
             rio.TextInput(
-                on_change=self.on_change_name,
+                on_change=self._on_change_name,
                 text=self.item.name,
                 label="Name",
             ),
             rio.TextInput(
-                on_change=self.on_change_comment,
+                on_change=self._on_change_comment,
                 text=self.item.comment,
                 label="Comment",
             ),
             rio.Dropdown(
-                on_change=lambda e: setattr(self.item, "type", e.value),
-                selected_value=self.item.type,
+                on_change=self._on_change_algorithm,
+                selected_value=self.item.algorithm,
                 options=SSHKeyTypeOptions,
-                label="Type",
-            ),
-            rio.NumberInput(
-                on_change=lambda e: setattr(self.item, "bits", int(e.value)),
-                value=self.item.bits,
-                label="Bits",
-                decimals=0,
+                label="Algorithm",
             ),
             min_width=30.0,
             spacing=1.0,
         )
 
+        if self.item.algorithm == "rsa":
+            self.item.bits = max(1024, self.item.bits)
+            content.add(
+                rio.NumberInput(
+                    on_change=lambda e: setattr(self.item, "bits", int(e.value)),  # noqa:E501
+                    value=self.item.bits,
+                    label="Bits",
+                    minimum=1024,
+                    decimals=0,
+                )
+            )
+        elif self.item.algorithm == "dsa":
+            self.item.bits = 1024
+            content.add(
+                rio.NumberInput(
+                    value=self.item.bits,
+                    is_sensitive=False,
+                    label="Bits",
+                    decimals=0,
+                )
+            )
+        elif self.item.algorithm == "ecdsa":
+            self.item.bits = 521
+            content.add(
+                rio.Dropdown(
+                    on_change=lambda e: setattr(self.item, "bits", e.value),
+                    selected_value=self.item.bits,
+                    options=[256, 384, 521],
+                    label="Bits",
+                )
+            )
+
+        content.add(
+            rio.Row(
+                rio.Button(
+                    "Create",
+                    color="keep",
+                    style="major",
+                    on_press=self._on_save,
+                ),
+                rio.Button(
+                    "Cancel",
+                    color="danger",
+                    style="minor",
+                    on_press=self.on_finish,
+                ),
+                spacing=1.0,
+            )
+        )
+
+        return content
+
 
 class SSHPage(rio.Component):
     """A CRUD page that allows users to create, read, update, and delete menu
     items.
-
-    The @rio.event.on_populate decorator is used to fetch data from a
-    predefined data model and assign it to the menu_items attribute of
-    the current instance.
-
-
-    ## Attributes
-
-    `banner_text`: The text to be displayed in the banner.
-
-    `banner_style`: The style of the banner (success, danger, info).
-
-    `currently_selected_menu_item`: The currently selected menu item.
-
-    `menu_items`: A list of menu items.
     """
 
     banner_text: str = ""
     banner_style: Literal["success", "danger", "info"] = "success"
-    currently_selected_menu_item: Optional[KeyItem] = None
-    menu_items: List[KeyItem] = []
+
+    ssh_keys: Dict[str, SSHKeyItem] = {}
 
     @rio.event.on_populate
     def on_populate(self) -> None:
         """Event handler that is called when the component is populated.
 
         Fetches data from a predefined data model and assigns it to the
-        menu_items attribute of the current instance.
+        ssh_keys attribute of the current instance.
         """
         account: Account = self.session[Account]
         setting: UserSettings = self.session[UserSettings]
         if profile := account.fetch(setting.session_id, setting.secret_key):
             for name in (ring := SSHKeyRing(base=profile.workspace)):
-                self.menu_items.append(KeyItem.create(name, ring[name]))
+                self.ssh_keys[name] = SSHKeyItem.create(name, ring[name])
 
     async def on_press_create_item(self) -> None:
-        new_item: KeyItem = KeyItem.empty()
+        new_item: SSHKeyItem = SSHKeyItem.empty()
+
+        async def refresh_page() -> None:
+            if name := new_item.name:
+                account: Account = self.session[Account]
+                setting: UserSettings = self.session[UserSettings]
+                if profile := account.fetch(setting.session_id, setting.secret_key):  # noqa:E501
+                    ring = SSHKeyRing(base=profile.workspace)
+                    self.ssh_keys[name] = SSHKeyItem.create(name, ring[name])
+            await dialog.close(None)
+            self.force_refresh()
 
         def build_dialog_content() -> rio.Component:
-            return rio.Column(
-                AddKeyItemComponent(new_item),
-                rio.Row(
-                    rio.Button(
-                        "Save",
-                        color="keep",
-                        style="major",
-                        # on_press=lambda selected_menu_item_copied=selected_menu_item_copied: dialog.close(
-                        #     selected_menu_item_copied
-                        # ),
-                    ),
-                    rio.Button(
-                        "Cancel",
-                        color="danger",
-                        style="minor",
-                        on_press=lambda: dialog.close(None),
-                    ),
-                    spacing=1.0,
-                ),
-                spacing=1.0,
-            )
+            return CreateComponent(item=new_item, on_finish=refresh_page)
 
         # Show the dialog
         dialog = await self.session.show_custom_dialog(
@@ -406,19 +446,21 @@ class SSHPage(rio.Component):
 
     async def on_press_delete_item(self, name: str) -> None:
         """Perform actions when the "Delete" button is pressed."""
-        # delete the item from the list
-        # self.menu_items.pop(index)
         account: Account = self.session[Account]
         setting: UserSettings = self.session[UserSettings]
         if profile := account.fetch(setting.session_id, setting.secret_key):
             ring: SSHKeyRing = SSHKeyRing(base=profile.workspace)
             if ring.remove(name):
+                del self.ssh_keys[name]
                 self.banner_text = f"Successfully deleted {name}"
                 self.banner_style = "success"
-                self.force_refresh()
             else:
                 self.banner_text = f"Failed to delete {name}"
                 self.banner_style = "danger"
+        else:
+            self.banner_text = "Login required"
+            self.banner_style = "danger"
+        self.force_refresh()
 
     def build(self) -> rio.Component:
         """Builds the component to be rendered."""
@@ -427,7 +469,7 @@ class SSHPage(rio.Component):
         return rio.Column(
             Navbar(
                 rio.Button(
-                    content="Create",
+                    content="Generate",
                     icon="material/add",
                     color="success",
                     shape="rounded",
@@ -450,10 +492,10 @@ class SSHPage(rio.Component):
                     KeyItemComponent(
                         item=item,
                         on_delete=functools.partial(
-                            self.on_press_delete_item, item.name
+                            self.on_press_delete_item, name
                         ),
                     )
-                    for item in self.menu_items
+                    for name, item in self.ssh_keys.items()
                 ],
                 # align at the top
                 align_y=0.0,
