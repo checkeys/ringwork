@@ -1,4 +1,4 @@
-from typing import List
+from typing import Iterable
 
 import rio
 from xpw import Account
@@ -9,9 +9,7 @@ from ringwork.components.user import UserSettings
 class Navbar(rio.Component):
     """A navbar with a fixed position and responsive width."""
 
-    def __init__(self, *children: rio.Component) -> None:
-        self.children: List[rio.Component] = list(children)
-        super().__init__(grow_y=False)
+    children: Iterable[rio.Component]
 
     # Make sure the navbar will be rebuilt when the app navigates to a different
     # page. While Rio automatically detects state changes and rebuilds
@@ -20,6 +18,7 @@ class Navbar(rio.Component):
     #
     # Instead, we can use Rio's `on_page_change` event to trigger a rebuild of
     # the navbar when the page changes.
+
     @rio.event.on_page_change
     def on_page_change(self) -> None:
         # Rio comes with a function specifically for this. Whenever Rio is

@@ -87,6 +87,7 @@ class KeyItemComponent(rio.Component):
                         on_press=lambda: self.session.save_file(
                             file_contents=self.item.private,
                             file_name=f"{self.item.name}",
+                            media_type="application/octet-stream",
                         ),
                         style="plain-text",
                         min_size=3.0,
@@ -128,6 +129,7 @@ class KeyItemComponent(rio.Component):
                         on_press=lambda: self.session.save_file(
                             file_contents=self.item.public,
                             file_name=f"{self.item.name}.pub",
+                            media_type="application/octet-stream",
                         ),
                         style="plain-text",
                         min_size=3.0,
@@ -385,7 +387,7 @@ class CreateComponent(rio.Component):
                     on_press=self.on_finish,
                 ),
                 rio.Button(
-                    "Create",
+                    "Generate",
                     color="keep",
                     style="major",
                     on_press=self._on_press_create,
@@ -609,22 +611,24 @@ class SSHKeyComponent(rio.Component):
         # Then unpack the list to pass the children to the ListView
         return rio.Column(
             Navbar(
-                rio.Button(
-                    content="Generate",
-                    icon="material/add",
-                    color="success",
-                    shape="rounded",
-                    style="minor",
-                    on_press=self.on_press_create_item,
-                ),
-                rio.Button(
-                    content="Upload",
-                    icon="material/upload",
-                    color="secondary",
-                    shape="rounded",
-                    style="minor",
-                    on_press=self.on_press_upload_item,
-                ),
+                children=[
+                    rio.Button(
+                        content="Create",
+                        icon="material/add",
+                        color="success",
+                        shape="rounded",
+                        style="minor",
+                        on_press=self.on_press_create_item,
+                    ),
+                    rio.Button(
+                        content="Upload",
+                        icon="material/upload",
+                        color="secondary",
+                        shape="rounded",
+                        style="minor",
+                        on_press=self.on_press_upload_item,
+                    ),
+                ]
             ),
             rio.Column(
                 rio.Text(text="SSH keys", style="heading2"),
