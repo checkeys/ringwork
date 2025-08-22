@@ -504,7 +504,7 @@ class UploadComponent(rio.Component):
         return content
 
 
-class SSHPage(rio.Component):
+class SSHKeyComponent(rio.Component):
     """A CRUD page that allows users to create, read, update, and delete menu
     items.
     """

@@ -1,13 +1,13 @@
 import rio
 
+from ringwork.components.keys import SSHKeyComponent
 from ringwork.components.user import Restrict
-from ringwork.pages.ssh_page import SSHPage
 
 
 @rio.page(name="Home", url_segment="", guard=Restrict)
 class HomePage(rio.Component):
     def build(self) -> rio.Component:
-        return SSHPage()
+        return SSHKeyComponent()
 
 
 class MainPage(rio.Component):

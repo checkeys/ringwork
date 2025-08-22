@@ -6,7 +6,6 @@ from xpw import Account
 from xpw import Secret
 
 from ringwork.components.user import UserSettings
-from ringwork.components.user import UserSignUpForm
 
 
 @rio.page(name="Login", url_segment="login")
@@ -101,27 +100,6 @@ class LoginPage(rio.Component):
                 is_loading=self._currently_logging_in,
             )
         )
-        if False:
-            # Create a sign up button that opens a pop up with a sign up form
-            components.append(
-                rio.Popup(
-                    anchor=rio.Button(
-                        "Sign Up",
-                        on_press=self.on_open_popup,
-                        style="minor",
-                    ),
-                    content=UserSignUpForm(
-                        # Bind `popup_open` to the `popup_open` attribute of
-                        # the login page. This way the page's attribute will
-                        # always have the same value as that of the form,
-                        # even when one changes.
-                        popup_open=self.bind().popup_open,
-                    ),
-                    position="fullscreen",
-                    is_open=self.popup_open,
-                    color="none",
-                )
-            )
 
         return rio.Card(
             rio.Column(
