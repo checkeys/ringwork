@@ -147,30 +147,6 @@ class KeyItemComponent(rio.Component):
                 key="public",
             ),
             rio.SeparatorListItem(),
-            # rio.SimpleListItem(
-            #     text="Fingerprint",
-            #     secondary_text=self.item.fingerprint,
-            #     key="fingerprint",
-            # ),
-            # rio.SeparatorListItem(),
-            # rio.SimpleListItem(
-            #     text="Comment",
-            #     secondary_text=self.item.comment,
-            #     key="comment",
-            # ),
-            # rio.SeparatorListItem(),
-            # rio.SimpleListItem(
-            #     text="Algorithm",
-            #     secondary_text=self.item.algo,
-            #     key="algorithm",
-            # ),
-            # rio.SeparatorListItem(),
-            # rio.SimpleListItem(
-            #     text="Bits",
-            #     secondary_text=str(self.item.bits),
-            #     key="bits",
-            # ),
-            # rio.SeparatorListItem(),
             align_y=0,
         )
 
@@ -412,17 +388,24 @@ class UploadComponent(rio.Component):
     def _on_change_private(self, ev: rio.MultiLineTextInputChangeEvent) -> None:  # noqa:E501
         self.item.private = ev.text
 
-    async def _on_press_upload(self) -> None:
+        if not self.item.name:
+            try:
+                self.item.name = SSHKeyPair(private=ev.text).comment or self.item.name  # noqa:E501
+                self.force_refresh()
+            except Exception:
+                pass
+
+    async def _on_pick_file(self, ev: rio.FilePickEvent) -> None:
         try:
-            file = await self.session.pick_file(multiple=False)
-            text = await file.read_text(encoding="utf-8")
+            text = await ev.file.read_text(encoding="utf-8")
             pair = SSHKeyPair(private=text)
-            self.item.private = pair.private
             self.item.name = pair.comment
+            self.item.private = pair.private
             self.banner_text = ""
-            self.force_refresh()
-        except rio.NoFileSelectedError:
-            pass
+        except Exception:
+            self.banner_text = "Invalid private key file"
+
+        self.force_refresh()
 
     async def _on_press_save(self) -> None:
         if not self.item.name:
@@ -445,29 +428,15 @@ class UploadComponent(rio.Component):
 
         try:
             self.item.name = ring.create(private=self.item.private, name=self.item.name)  # noqa:E501
-        except Exception as error:
-            self.banner_text = str(error)
+        except Exception:
+            self.banner_text = "Failed to save SSH key"
             return self.force_refresh()
 
         await self.call_event_handler(self.on_finish)
 
     def build(self) -> rio.Component:
         content = rio.Column(
-            rio.Row(
-                rio.Text(
-                    text="Upload SSH key",
-                    style="heading2",
-                    grow_x=True,
-                ),
-                rio.IconButton(
-                    on_press=self._on_press_upload,
-                    icon="material/cloud_upload",
-                    style="colored-text",
-                    color="keep",
-                    min_size=3.0,
-                ),
-                spacing=1.0,
-            ),
+            rio.Text(text="Upload SSH key", style="heading2", grow_x=True),
             rio.Banner(text=self.banner_text, style="danger"),
             rio.TextInput(
                 on_change=self._on_change_name,
@@ -479,7 +448,13 @@ class UploadComponent(rio.Component):
                 auto_adjust_height=False,
                 text=self.item.private,
                 label="Private key",
-                min_height=15.0,
+                # min_height=15.0,
+            ),
+            rio.FilePickerArea(
+                content="Drag & Drop private key file here",
+                file_types=None,
+                multiple=False,
+                on_pick_file=self._on_pick_file,
             ),
             min_width=30.0,
             spacing=1.0,
