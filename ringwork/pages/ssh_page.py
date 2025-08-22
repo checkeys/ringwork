@@ -221,14 +221,27 @@ class KeyItemComponent(rio.Component):
                     # Let the title grow to fill the available space
                     grow_x=True,
                 ),
+                # The "copy" button
+                rio.Tooltip(
+                    anchor=rio.IconButton(
+                        icon="material/content_copy",
+                        on_press=lambda: self.session.set_clipboard(
+                            self.item.public
+                        ),
+                        color="keep",
+                        style="colored-text",
+                        min_size=3.0,
+                    ),
+                    tip="Copy public key",
+                ),
                 # The "delete" button
                 rio.Tooltip(
                     anchor=rio.IconButton(
                         icon="material/delete",
                         on_press=self.on_delete,
                         color="danger",
-                        style="major",
-                        min_size=2.5,
+                        style="colored-text",
+                        min_size=3.0,
                     ),
                     tip="Delete",
                 ),
@@ -243,7 +256,6 @@ class KeyItemComponent(rio.Component):
 
 
 class CreateComponent(rio.Component):
-    """Displays a single `SSHKeyItem`."""
 
     item: SSHKeyItem
     on_finish: rio.EventHandler[[]] = None
@@ -275,7 +287,7 @@ class CreateComponent(rio.Component):
             self.item.bits = 4096
         self.force_refresh()
 
-    async def _on_save(self) -> None:
+    async def _on_press_create(self) -> None:
         if not self.item.name:
             self.banner_text = "Please enter a name"
             return self.force_refresh()
@@ -367,16 +379,123 @@ class CreateComponent(rio.Component):
         content.add(
             rio.Row(
                 rio.Button(
+                    "Cancel",
+                    color="danger",
+                    style="minor",
+                    on_press=self.on_finish,
+                ),
+                rio.Button(
                     "Create",
                     color="keep",
                     style="major",
-                    on_press=self._on_save,
+                    on_press=self._on_press_create,
                 ),
+                spacing=1.0,
+            )
+        )
+
+        return content
+
+
+class UploadComponent(rio.Component):
+
+    item: SSHKeyItem
+    on_finish: rio.EventHandler[[]] = None
+
+    banner_text: str = ""
+
+    def _on_change_name(self, ev: rio.TextInputChangeEvent) -> None:
+        self.item.name = ev.text
+
+    def _on_change_private(self, ev: rio.MultiLineTextInputChangeEvent) -> None:  # noqa:E501
+        self.item.private = ev.text
+
+    async def _on_press_upload(self) -> None:
+        try:
+            file = await self.session.pick_file(multiple=False)
+            text = await file.read_text(encoding="utf-8")
+            pair = SSHKeyPair(private=text)
+            self.item.private = pair.private
+            self.item.name = pair.comment
+            self.banner_text = ""
+            self.force_refresh()
+        except rio.NoFileSelectedError:
+            pass
+
+    async def _on_press_save(self) -> None:
+        if not self.item.name:
+            self.banner_text = "Please enter a name"
+            return self.force_refresh()
+
+        if not self.item.private:
+            self.banner_text = "Please enter a private key"
+            return self.force_refresh()
+
+        account: Account = self.session[Account]
+        setting: UserSettings = self.session[UserSettings]
+        if not (profile := account.fetch(setting.session_id, setting.secret_key)):  # noqa:E501
+            self.banner_text = "Login required"
+            return self.force_refresh()
+
+        if self.item.name in (ring := SSHKeyRing(base=profile.workspace)):
+            self.banner_text = "SSH key already exists"
+            return self.force_refresh()
+
+        try:
+            self.item.name = ring.create(private=self.item.private, name=self.item.name)  # noqa:E501
+        except Exception as error:
+            self.banner_text = str(error)
+            return self.force_refresh()
+
+        await self.call_event_handler(self.on_finish)
+
+    def build(self) -> rio.Component:
+        content = rio.Column(
+            rio.Row(
+                rio.Text(
+                    text="Upload SSH key",
+                    style="heading2",
+                    grow_x=True,
+                ),
+                rio.IconButton(
+                    on_press=self._on_press_upload,
+                    icon="material/cloud_upload",
+                    style="colored-text",
+                    color="keep",
+                    min_size=3.0,
+                ),
+                spacing=1.0,
+            ),
+            rio.Banner(text=self.banner_text, style="danger"),
+            rio.TextInput(
+                on_change=self._on_change_name,
+                text=self.item.name,
+                label="Name",
+            ),
+            rio.MultiLineTextInput(
+                on_change=self._on_change_private,
+                auto_adjust_height=False,
+                text=self.item.private,
+                label="Private key",
+                min_height=15.0,
+            ),
+            min_width=30.0,
+            spacing=1.0,
+        )
+
+        content.add(
+            rio.Row(
                 rio.Button(
                     "Cancel",
                     color="danger",
                     style="minor",
                     on_press=self.on_finish,
+                ),
+                rio.Button(
+                    "Save",
+                    color="keep",
+                    style="major",
+                    on_press=self._on_press_save,
                 ),
                 spacing=1.0,
             )
@@ -438,11 +557,33 @@ class SSHPage(rio.Component):
         await dialog.wait_for_close()
 
     async def on_press_upload_item(self) -> None:
-        try:
-            file = self.session.pick_file(multiple=False)
-            await file
-        except rio.NoFileSelectedError:
-            pass
+        new_item: SSHKeyItem = SSHKeyItem.empty()
+
+        async def refresh_page() -> None:
+            if name := new_item.name:
+                account: Account = self.session[Account]
+                setting: UserSettings = self.session[UserSettings]
+                if profile := account.fetch(setting.session_id, setting.secret_key):  # noqa:E501
+                    ring = SSHKeyRing(base=profile.workspace)
+                    self.ssh_keys[name] = SSHKeyItem.create(name, ring[name])
+            await dialog.close(None)
+            self.force_refresh()
+
+        def build_dialog_content() -> rio.Component:
+            return UploadComponent(item=new_item, on_finish=refresh_page)
+
+        # Show the dialog
+        dialog = await self.session.show_custom_dialog(
+            build=build_dialog_content,
+            # Prevent the user from interacting with the rest of the app
+            # while the dialog is open
+            modal=True,
+            # Don't close the dialog if the user clicks outside of it
+            user_closable=False,
+        )
+
+        # Wait for the user to select an option
+        await dialog.wait_for_close()
 
     async def on_press_delete_item(self, name: str) -> None:
         """Perform actions when the "Delete" button is pressed."""
