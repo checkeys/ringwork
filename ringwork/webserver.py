@@ -32,7 +32,7 @@ async def on_session_start(rio_session: Session) -> None:
         rio_session.attach(enduser)
 
 
-def run_as_web_server(host: str = "0.0.0.0", port: int = 8000, quiet: bool = True) -> None:  # noqa:E501
+def create_app() -> App:
     # https://rio.dev/docs/api/theme
     theme = Theme.from_colors(
         primary_color=Color.from_hex("01dffdff"),
@@ -41,7 +41,7 @@ def run_as_web_server(host: str = "0.0.0.0", port: int = 8000, quiet: bool = Tru
     )
 
     # Create the Rio app
-    rio_app = App(
+    app = App(
         build=MainPage,
         name=__project__,
         description=__description__,
@@ -57,7 +57,11 @@ def run_as_web_server(host: str = "0.0.0.0", port: int = 8000, quiet: bool = Tru
         theme=theme,
     )
 
-    fastapi_app = rio_app.as_fastapi()
+    return app
+
+
+def run_as_web_server(host: str = "0.0.0.0", port: int = 8000, quiet: bool = True) -> None:  # noqa:E501
+    fastapi_app = create_app().as_fastapi()
     fastapi_app.add_api_route(path="/api/pub/{uid}/{kid}", endpoint=get_public_key, methods=["GET"])  # noqa:E501
     fastapi_app.add_api_route(path="/api/list/{pid}", endpoint=get_public_list, methods=["GET"])  # noqa:E501
     fastapi_app.add_api_route(path="/api/download/pub/{uid}/{kid}", endpoint=download_public_key, methods=["GET"])  # noqa:E501
@@ -77,4 +81,4 @@ def run_as_web_server(host: str = "0.0.0.0", port: int = 8000, quiet: bool = Tru
 
 
 if __name__ == "__main__":
-    run_as_web_server(host="0.0.0.0", port=8000, quiet=False)
+    run_as_web_server(host="0.0.0.0", port=9000, quiet=False)
