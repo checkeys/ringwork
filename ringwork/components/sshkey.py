@@ -28,6 +28,7 @@ from rio import NumberInput
 from rio import Row
 from rio import ScrollContainer
 from rio import SeparatorListItem
+from rio import Spacer
 from rio import Text
 from rio import TextInput
 from rio import TextInputChangeEvent
@@ -664,23 +665,31 @@ class SSHKeyComponent(Component):
 
         def build_confirmation_dialog() -> Component:
             return Column(
-                Text(f"Are you sure you want to delete the SSH key '{name}'?", style="heading3"),  # noqa:E501
-                Text("This action cannot be undone.", style="dim"),
                 Row(
-                    Button(
-                        "Delete",
-                        color="danger",
-                        style="major",
-                        on_press=confirm_delete,
+                    Text(text=f"Delete {name}", style="heading3"),
+                    Spacer(),
+                    Tooltip(
+                        anchor=IconButton(
+                            icon="material/close:fill",
+                            on_press=cancel_delete,
+                            style="plain-text",
+                            min_size=3.0,
+                        ),
+                        tip="Cancel and close dialog",
                     ),
-                    Button(
-                        "Cancel",
-                        color="secondary",
-                        style="minor",
-                        on_press=cancel_delete,
-                    ),
-                    spacing=1.0,
-                    align_x=1.0,
+                ),
+                Banner(text="Unexpected bad things will happen if you don’t read this!", style="danger"),  # noqa:E501
+                Column(
+                    Text(text=f"This will permanently delete the \"{name}\" SSH private key.", style="text"),  # noqa:E501
+                    Text(text="You can still use this SSH key if it has already been stored.", style="text"),  # noqa:E501
+                    Text(text="But if you want to create it again, you must have the private key.", style="text"),  # noqa:E501
+                    spacing=0.5,
+                ),
+                Button(
+                    "I have read and understand these effects",
+                    style="minor",
+                    color="danger",
+                    on_press=confirm_delete,
                 ),
                 spacing=1.0,
             )
