@@ -59,7 +59,7 @@ class SSHKeyItem:
     @classmethod
     def empty(cls) -> "SSHKeyItem":
         """Creates a new empty SSHKeyItem object."""
-        return cls(algorithm="rsa",
+        return cls(algorithm="ed25519",
                    fingerprint="",
                    comment="",
                    private="",
@@ -226,6 +226,32 @@ class KeyItemComponent(Component):
                     Text(self.item.fingerprint),
                     # Let the title grow to fill the available space
                     grow_x=True,
+                ),
+                # The "download" button
+                Tooltip(
+                    anchor=IconButton(
+                        icon="material/download",
+                        on_press=lambda: self.session.set_clipboard(
+                            self.item.public
+                        ),
+                        color="keep",
+                        style="colored-text",
+                        min_size=3.0,
+                    ),
+                    tip="Download public key file",
+                ),
+                # The "link" button
+                Tooltip(
+                    anchor=IconButton(
+                        icon="material/attach_file",
+                        on_press=lambda: self.session.set_clipboard(
+                            self.item.public
+                        ),
+                        color="keep",
+                        style="colored-text",
+                        min_size=3.0,
+                    ),
+                    tip="Copy api link",
                 ),
                 # The "copy" button
                 Tooltip(
@@ -519,10 +545,26 @@ class SSHKeyComponent(Component):
     items.
     """
 
-    banner_text: str = ""
     banner_style: Literal["success", "danger", "info"] = "success"
+    banner_text: str = ""
 
     ssh_keys: Dict[str, SSHKeyItem] = {}
+
+    def cleanup_prompt(self) -> None:
+        self.banner_style = "success"
+        self.banner_text = ""
+
+    def success_prompt(self, text: str) -> None:
+        self.banner_style = "success"
+        self.banner_text = text
+
+    def danger_prompt(self, text: str) -> None:
+        self.banner_style = "danger"
+        self.banner_text = text
+
+    def prompt(self, text: str) -> None:
+        self.banner_style = "info"
+        self.banner_text = text
 
     @event.on_populate
     def on_populate(self) -> None:
@@ -547,6 +589,7 @@ class SSHKeyComponent(Component):
                 if profile := account.fetch(enduser.session_id, enduser.secret_key):  # noqa:E501
                     ring = SSHKeyRing(base=profile.workspace)
                     self.ssh_keys[name] = SSHKeyItem.create(name, ring[name])
+                    self.success_prompt(f"SSH key '{name}' generated")
             await dialog.close(None)
             self.force_refresh()
 
@@ -576,6 +619,7 @@ class SSHKeyComponent(Component):
                 if profile := account.fetch(enduser.session_id, enduser.secret_key):  # noqa:E501
                     ring = SSHKeyRing(base=profile.workspace)
                     self.ssh_keys[name] = SSHKeyItem.create(name, ring[name])
+                    self.success_prompt(f"SSH key '{name}' saved")
             await dialog.close(None)
             self.force_refresh()
 
@@ -597,21 +641,61 @@ class SSHKeyComponent(Component):
 
     async def on_press_delete_item(self, name: str) -> None:
         """Perform actions when the "Delete" button is pressed."""
-        account: Account = self.session[Account]
-        enduser: EndUser = self.session[EndUser]
-        if profile := account.fetch(enduser.session_id, enduser.secret_key):
-            ring: SSHKeyRing = SSHKeyRing(base=profile.workspace)
-            if ring.remove(name):
-                del self.ssh_keys[name]
-                self.banner_text = f"Successfully deleted {name}"
-                self.banner_style = "success"
+
+        async def confirm_delete() -> None:
+            account: Account = self.session[Account]
+            enduser: EndUser = self.session[EndUser]
+            if profile := account.fetch(enduser.session_id, enduser.secret_key):  # noqa:E501
+                # TODO: Confirm
+                ring: SSHKeyRing = SSHKeyRing(base=profile.workspace)
+                if ring.remove(name):
+                    del self.ssh_keys[name]
+                    self.success_prompt(f"Successfully deleted {name}")
+                else:
+                    self.danger_prompt(f"Failed to delete {name}")
             else:
-                self.banner_text = f"Failed to delete {name}"
-                self.banner_style = "danger"
-        else:
-            self.banner_text = "Login required"
-            self.banner_style = "danger"
-        self.force_refresh()
+                self.danger_prompt("Login required")
+            self.force_refresh()
+
+            await dialog.close(None)
+
+        async def cancel_delete() -> None:
+            await dialog.close(None)
+
+        def build_confirmation_dialog() -> Component:
+            return Column(
+                Text(f"Are you sure you want to delete the SSH key '{name}'?", style="heading3"),  # noqa:E501
+                Text("This action cannot be undone.", style="dim"),
+                Row(
+                    Button(
+                        "Delete",
+                        color="danger",
+                        style="major",
+                        on_press=confirm_delete,
+                    ),
+                    Button(
+                        "Cancel",
+                        color="secondary",
+                        style="minor",
+                        on_press=cancel_delete,
+                    ),
+                    spacing=1.0,
+                    align_x=1.0,
+                ),
+                spacing=1.0,
+            )
+
+        # Show confirmation dialog
+        dialog = await self.session.show_custom_dialog(
+            build=build_confirmation_dialog,
+            # Prevent the user from interacting with the rest of the app
+            # while the dialog is open
+            modal=True,
+            # Close the dialog if the user clicks outside of it
+            user_closable=True,
+        )
+
+        await dialog.wait_for_close()
 
     def build(self) -> Component:
         """Builds the component to be rendered."""

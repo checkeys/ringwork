@@ -1,11 +1,22 @@
 # coding:utf-8
 
-from fastapi import Request
-from fastapi.responses import Response
+from fastapi.responses import PlainTextResponse
 
 
-async def public_key_get(request: Request) -> Response:
-    return Response(
-        content=f"{request.url.path}",
-        media_type="text/plain",
-    )
+def _get_public_key(uid: str, kid: str) -> PlainTextResponse:
+    return PlainTextResponse(content=f"uid: {uid}\nkid: {kid}")
+
+
+async def get_public_key(uid: str, kid: str) -> PlainTextResponse:
+    return _get_public_key(uid=uid, kid=kid)
+
+
+async def download_public_key(uid: str, kid: str) -> PlainTextResponse:
+    response = _get_public_key(uid=uid, kid=kid)
+    response.headers["Cache-Control"] = "no-cache"
+    response.headers["Content-Disposition"] = f"attachment; filename={kid}.pub"
+    return response
+
+
+async def get_public_list(pid: str) -> PlainTextResponse:
+    return PlainTextResponse(content=f"pid: {pid}")

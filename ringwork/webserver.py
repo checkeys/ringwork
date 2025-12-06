@@ -14,7 +14,9 @@ from xpw import SessionID
 from ringwork.attribute import __description__
 from ringwork.attribute import __project__
 from ringwork.components.access import EndUser
-from ringwork.interfaces import public_key_get
+from ringwork.interfaces import download_public_key
+from ringwork.interfaces import get_public_key
+from ringwork.interfaces import get_public_list
 from ringwork.pages import MainPage
 
 
@@ -30,15 +32,7 @@ async def on_session_start(rio_session: Session) -> None:
         rio_session.attach(enduser)
 
 
-def run_as_web_server(host: str = "0.0.0.0", port: int = 8000) -> None:
-    """
-    Internal equivalent of `run_as_web_server` that takes additional
-    arguments.
-    """
-
-    # Suppress stdout messages if requested
-    log_level = "error" if True else "info"
-
+def run_as_web_server(host: str = "0.0.0.0", port: int = 8000, quiet: bool = True) -> None:  # noqa:E501
     # https://rio.dev/docs/api/theme
     theme = Theme.from_colors(
         primary_color=Color.from_hex("01dffdff"),
@@ -64,13 +58,16 @@ def run_as_web_server(host: str = "0.0.0.0", port: int = 8000) -> None:
     )
 
     fastapi_app = rio_app.as_fastapi()
-    fastapi_app.add_api_route("/api/pub/{subpath:path}", public_key_get, methods=["GET"])  # noqa:E501
+    fastapi_app.add_api_route(path="/api/pub/{uid}/{kid}", endpoint=get_public_key, methods=["GET"])  # noqa:E501
+    fastapi_app.add_api_route(path="/api/list/{pid}", endpoint=get_public_list, methods=["GET"])  # noqa:E501
+    fastapi_app.add_api_route(path="/api/download/pub/{uid}/{kid}", endpoint=download_public_key, methods=["GET"])  # noqa:E501
 
     config = Config(
         fastapi_app,
         host=host,
         port=port,
-        log_level=log_level,
+        # Suppress stdout messages if requested
+        log_level="error" if quiet else "info",
         # Without a timeout, sometimes the server just deadlocks
         timeout_graceful_shutdown=1,
     )
@@ -80,4 +77,4 @@ def run_as_web_server(host: str = "0.0.0.0", port: int = 8000) -> None:
 
 
 if __name__ == "__main__":
-    run_as_web_server(host="0.0.0.0", port=8000)
+    run_as_web_server(host="0.0.0.0", port=8000, quiet=False)
