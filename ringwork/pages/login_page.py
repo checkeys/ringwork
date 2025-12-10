@@ -26,15 +26,15 @@ class LoginPage(Component):
     username: str = ""
     password: str = ""
 
-    error_message: str = ""
-    popup_open: bool = False
+    def __post_init__(self) -> None:
+        self.__currently_logging_in: bool = False
+        # self.__popup_open: bool = False
+        self.__banner_text: str = ""
 
-    _currently_logging_in: bool = False
-
-    async def goto_public(self) -> None:
+    async def _goto_public(self) -> None:
         self.session.navigate_to("/public")
 
-    async def login(self, _: Optional[TextInputConfirmEvent] = None) -> None:
+    async def _login(self, _: Optional[TextInputConfirmEvent] = None) -> None:
         """Handles the login process when the user submits their credentials.
 
         It will check if the user exists and if the password is correct. If the
@@ -43,44 +43,41 @@ class LoginPage(Component):
         """
         try:
             # Inform the user that something is happening
-            self._currently_logging_in = True
+            self.__currently_logging_in = True
             self.force_refresh()
 
             #  Try to find a user with this name
             access_control: AccessControl = self.session[AccessControl]
             session_id: str = (enduser := self.session[EndUser]).session_id
             if not (user := access_control.activate(self.username, self.password, session_id)):  # noqa:E501
-                self.error_message = "Please try again."
+                self.__banner_text = "Please try again."
                 return
 
             enduser.secret_key = user.secret_key
             self.session.attach(enduser)
 
             # The login was successful
-            self.error_message = ""
+            self.__banner_text = ""
 
             # The user is logged in - no reason to stay here
             self.session.navigate_to(target_url="/")
 
         # Done
         finally:
-            self._currently_logging_in = False
+            self.__currently_logging_in = False
 
-    def on_open_popup(self) -> None:
-        """Opens the sign-up popup when the user clicks the sign-up button"""
-        self.popup_open = True
+    # def on_open_popup(self) -> None:
+    #     """Opens the sign-up popup when the user clicks the sign-up button"""
+    #     self.__popup_open = True
 
     def build(self) -> Component:
-        # Determine the layout based on the window width
-        desktop_layout = self.session.window_width > 30
-
         components: List[Component] = []
         components.append(Text("Login", style="heading1", justify="center"))
         # Show error message if there is one
         #
         # Banners automatically appear invisible if they don't have
         # anything to show, so there is no need for a check here.
-        components.append(Banner(text=self.error_message, style="danger", margin_top=1))  # noqa:E501
+        components.append(Banner(text=self.__banner_text, style="danger", margin_top=1))  # noqa:E501
         # Create the login form consisting of a username and password
         # input field, a login button and a sign up button
         components.append(
@@ -88,7 +85,7 @@ class LoginPage(Component):
                 text=self.bind().username,
                 label="Username",
                 # the login function is called when the user presses enter
-                on_confirm=self.login,
+                on_confirm=self._login,
             )
         )
         components.append(
@@ -99,33 +96,36 @@ class LoginPage(Component):
                 # hidden while typing
                 is_secret=True,
                 # the login function is called when the user presses enter
-                on_confirm=self.login,
+                on_confirm=self._login,
             )
         )
         components.append(Spacer(min_height=0.1))
         components.append(
             Button(
                 content="Sign In",
-                on_press=self.login,
-                is_loading=self._currently_logging_in,
+                on_press=self._login,
+                is_loading=self.__currently_logging_in,
             )
         )
         components.append(
             Button(
                 style="minor",
-                on_press=self.goto_public,
+                on_press=self._goto_public,
                 content="Access Public List",
             )
         )
 
-        return Card(
-            Column(
-                *components,
-                spacing=1,
-                margin=2 if desktop_layout else 1,
-            ),
-            margin_x=0.5,
-            align_y=0.5,
-            align_x=0.5 if desktop_layout else None,
-            min_width=24 if desktop_layout else 0,
-        )
+        if self.session.window_width > 30.0:
+            return Card(
+                Column(*components, spacing=1.0, margin=2.0),
+                min_width=24.0,
+                margin_x=0.5,
+                align_x=0.5,
+                align_y=0.5,
+            )
+        else:
+            return Card(
+                Column(*components, spacing=1.0, margin=1.0),
+                margin_x=2.0,
+                align_y=0.5,
+            )

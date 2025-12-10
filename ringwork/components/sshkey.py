@@ -39,7 +39,6 @@ from xkeys_ssh import SSHKeyRing
 
 from ringwork.components.access import AccessControl
 from ringwork.components.access import EndUser
-from ringwork.components.navbar import Navbar
 from ringwork.interfaces.sshkey import PublicKeyAPI
 
 SSHKeyTypeOptions = {key.upper(): key for key in get_args(SSHKeyAlgo)}
@@ -47,7 +46,6 @@ SSHKeyTypeOptions = {key.upper(): key for key in get_args(SSHKeyAlgo)}
 
 @dataclass
 class SSHKeyItem:
-    """SSHKeyItem data model."""
 
     algorithm: SSHKeyAlgo
     fingerprint: str
@@ -60,7 +58,6 @@ class SSHKeyItem:
 
     @classmethod
     def empty(cls) -> "SSHKeyItem":
-        """Creates a new empty SSHKeyItem object."""
         return cls(algorithm="rsa",
                    fingerprint="",
                    comment="",
@@ -82,13 +79,39 @@ class SSHKeyItem:
                    user=user)
 
 
-class KeyItemComponent(Component):
-    """Displays a single `SSHKeyItem`."""
+class KeyComponent(Component):
 
     item: SSHKeyItem
     on_delete: EventHandler[[]] = None
 
-    def _build_list_view(self) -> Component:
+    def __post_init__(self) -> None:
+        # The "public" button
+        self.__public_button = Tooltip(
+            anchor=Link(
+                content=IconButton(
+                    icon="material/info",
+                    style="colored-text",
+                    min_size=3.0,
+                ),
+                target_url=PublicKeyAPI.RAW_PATH.format(uid=self.item.user, kid=self.item.name),  # noqa:E501
+                open_in_new_tab=True,
+            ),
+            tip="Display public key",
+        )
+
+        # The "delete" button
+        self.__delete_button = Tooltip(
+            anchor=IconButton(
+                icon="material/delete",
+                on_press=self.on_delete,
+                style="colored-text",
+                color="danger",
+                min_size=3.0,
+            ),
+            tip="Delete",
+        )
+
+    def _build_view(self) -> Component:
         return ListView(
             CustomListItem(
                 content=Row(
@@ -102,6 +125,7 @@ class KeyItemComponent(Component):
                         ScrollContainer(
                             content=Text(
                                 self.item.private,
+                                overflow="ellipsize",
                                 selectable=False,
                                 justify="left",
                                 style="dim",
@@ -198,9 +222,14 @@ class KeyItemComponent(Component):
         """Creates a dialog to display a menu item."""
 
         def build_dialog_content() -> Component:
+            if (window_width := self.session.window_width) < 60.0:
+                min_width = window_width - 10.0
+            else:
+                min_width = 50.0
+
             return Column(
                 Text(self.item.name, style="heading2"),
-                self._build_list_view(),
+                self._build_view(),
                 Tooltip(
                     anchor=IconButton(
                         icon="material/close",
@@ -212,6 +241,7 @@ class KeyItemComponent(Component):
                     ),
                     tip="Close",
                 ),
+                min_width=min_width,
                 spacing=1.0,
             )
 
@@ -229,47 +259,25 @@ class KeyItemComponent(Component):
         await dialog.wait_for_close()
 
     def build(self) -> Component:
+        status_icon = Icon(
+            "material/key",
+            fill="success",
+            min_height=2.5,
+            min_width=2.5,
+        )
+
+        identifier = Column(Text(self.item.name, style="heading3"))
+        if self.session.window_width > 50.0:
+            identifier.add(Text(self.item.fingerprint, style="dim"))
+
         return Card(
             Row(
-                Icon(
-                    "material/key",
-                    fill="success",
-                    min_height=2.5,
-                    min_width=2.5,
-                ),
-                Spacer(min_width=0.1, grow_x=False),
-                # Text(self.item.algorithm, min_width=5.0, style="heading3"),
-                # The name and fingerprint
-                Column(
-                    Text(self.item.name, style="heading3"),
-                    Text(self.item.fingerprint, style="dim"),
-                ),
-                # Let the spacer grow to fill the available space
+                status_icon,
+                Spacer(min_width=0.5, grow_x=False),
+                identifier,  # The name and fingerprint
                 Spacer(grow_x=True),
-                # The "public" button
-                Tooltip(
-                    anchor=Link(
-                        content=IconButton(
-                            icon="material/info",
-                            style="colored-text",
-                            min_size=3.0,
-                        ),
-                        target_url=PublicKeyAPI.RAW_PATH.format(uid=self.item.user, kid=self.item.name),  # noqa:E501
-                        open_in_new_tab=True,
-                    ),
-                    tip="Display public key",
-                ),
-                # The "delete" button
-                Tooltip(
-                    anchor=IconButton(
-                        icon="material/delete",
-                        on_press=self.on_delete,
-                        style="colored-text",
-                        color="danger",
-                        min_size=3.0,
-                    ),
-                    tip="Delete",
-                ),
+                self.__public_button,
+                self.__delete_button,
                 spacing=0.5,
                 margin=0.5,
             ),
@@ -283,26 +291,26 @@ class KeyItemComponent(Component):
 class CreateComponent(Component):
 
     item: SSHKeyItem
-    on_finish: EventHandler[[]] = None
+    on_finish: EventHandler[[]]
 
-    sync_name: bool = True
-    sync_comment: bool = True
-
-    banner_text: str = ""
+    def __post_init__(self) -> None:
+        self.__banner_text: str = ""
+        self.__sync_name: bool = True
+        self.__sync_comment: bool = True
 
     def _on_change_name(self, ev: TextInputChangeEvent) -> None:
-        self.sync_name = not ev.text
+        self.__sync_name = not ev.text
         self.item.name = ev.text
 
-        if self.sync_comment and ev.text:
+        if self.__sync_comment and ev.text:
             self.item.comment = ev.text
             self.force_refresh()
 
     def _on_change_comment(self, ev: TextInputChangeEvent) -> None:
-        self.sync_comment = not ev.text
+        self.__sync_comment = not ev.text
         self.item.comment = ev.text
 
-        if self.sync_name and ev.text:
+        if self.__sync_name and ev.text:
             self.item.name = ev.text
             self.force_refresh()
 
@@ -319,40 +327,45 @@ class CreateComponent(Component):
 
     async def _on_press_create(self) -> None:
         if not self.item.name:
-            self.banner_text = "Please enter a name"
+            self.__banner_text = "Please enter a name"
             return self.force_refresh()
 
         if not self.item.comment:
-            self.banner_text = "Please enter a comment"
+            self.__banner_text = "Please enter a comment"
             return self.force_refresh()
 
         access_control: AccessControl = self.session[AccessControl]
         if not (profile := access_control.validate(user=self.session[EndUser])):  # noqa:E501
-            self.banner_text = "Login required"
+            self.__banner_text = "Login required"
             return self.force_refresh()
 
         if self.item.name in (ring := SSHKeyRing(base=profile.workspace)):
-            self.banner_text = "SSH key already exists"
+            self.__banner_text = "SSH key already exists"
             return self.force_refresh()
 
         try:
             if not ring.generate(algo=self.item.algorithm, bits=self.item.bits,
                                  name=self.item.name, comment=self.item.comment):  # noqa:E501
-                self.banner_text = "Failed to generate SSH key"
+                self.__banner_text = "Failed to generate SSH key"
                 return self.force_refresh()
         except Exception as error:
-            self.banner_text = str(error)
+            self.__banner_text = str(error)
             return self.force_refresh()
 
         await self.call_event_handler(self.on_finish)
 
     def build(self) -> Component:
+        if (window_width := self.session.window_width) < 50.0:
+            min_width = window_width - 10.0
+        else:
+            min_width = 30.0
+
         content = Column(
             Text(
                 text="Generate new SSH key",
                 style="heading2",
             ),
-            Banner(text=self.banner_text, style="danger"),
+            Banner(text=self.__banner_text, style="danger"),
             TextInput(
                 on_change=self._on_change_name,
                 text=self.item.name,
@@ -369,7 +382,7 @@ class CreateComponent(Component):
                 options=SSHKeyTypeOptions,
                 label="Algorithm",
             ),
-            min_width=30.0,
+            min_width=min_width,
             spacing=1.0,
         )
 
@@ -429,9 +442,10 @@ class CreateComponent(Component):
 class UploadComponent(Component):
 
     item: SSHKeyItem
-    on_finish: EventHandler[[]] = None
+    on_finish: EventHandler[[]]
 
-    banner_text: str = ""
+    def __post_init__(self) -> None:
+        self.__banner_text: str = ""
 
     def _on_change_name(self, ev: TextInputChangeEvent) -> None:
         self.item.name = ev.text
@@ -452,9 +466,9 @@ class UploadComponent(Component):
             pair = SSHKeyPair(private=text)
             self.item.name = pair.comment
             self.item.private = pair.private
-            self.banner_text = ""
+            self.__banner_text = ""
         except Exception:
-            self.banner_text = "Invalid private key file"
+            self.__banner_text = "Invalid private key file"
 
         self.force_refresh()
 
@@ -465,34 +479,39 @@ class UploadComponent(Component):
 
     async def _on_press_save(self) -> None:
         if not self.item.name:
-            self.banner_text = "Please enter a name"
+            self.__banner_text = "Please enter a name"
             return self.force_refresh()
 
         if not self.item.private:
-            self.banner_text = "Please enter a private key"
+            self.__banner_text = "Please enter a private key"
             return self.force_refresh()
 
         access_control: AccessControl = self.session[AccessControl]
         if not (profile := access_control.validate(user=self.session[EndUser])):  # noqa:E501
-            self.banner_text = "Login required"
+            self.__banner_text = "Login required"
             return self.force_refresh()
 
         if self.item.name in (ring := SSHKeyRing(base=profile.workspace)):
-            self.banner_text = "SSH key already exists"
+            self.__banner_text = "SSH key already exists"
             return self.force_refresh()
 
         try:
             self.item.name = ring.create(private=self.item.private, name=self.item.name)  # noqa:E501
         except Exception as error:
-            self.banner_text = str(error)
+            self.__banner_text = str(error)
             return self.force_refresh()
 
         await self.call_event_handler(self.on_finish)
 
     def build(self) -> Component:
+        if (window_width := self.session.window_width) < 50.0:
+            min_width = window_width - 10.0
+        else:
+            min_width = 30.0
+
         content = Column(
             Text(text="Upload SSH key", style="heading2", grow_x=True),
-            Banner(text=self.banner_text, style="danger"),
+            Banner(text=self.__banner_text, style="danger"),
             TextInput(
                 on_change=self._on_change_name,
                 text=self.item.name,
@@ -506,12 +525,12 @@ class UploadComponent(Component):
                 # min_height=15.0,
             ),
             FilePickerArea(
-                content="Drag & Drop private key file here",
+                content="Upload file" if min_width < 30.0 else "Drag & Drop private key file here",  # noqa:E501
                 file_types=None,
                 multiple=False,
                 on_pick_file=self._on_pick_file,
             ),
-            min_width=30.0,
+            min_width=min_width,
             spacing=1.0,
         )
 
@@ -536,31 +555,29 @@ class UploadComponent(Component):
         return content
 
 
-class SSHKeyComponent(Component):
-    """A CRUD page that allows users to create, read, update, and delete menu
-    items.
-    """
+class ListComponent(Component):
 
-    banner_style: Literal["success", "danger", "info"] = "success"
-    banner_text: str = ""
+    def __post_init__(self) -> None:
+        self.__banner_style: Literal["success", "danger", "info"] = "success"
+        self.__banner_text: str = ""
 
-    ssh_keys: Dict[str, SSHKeyItem] = {}
+        self.__ssh_keys: Dict[str, SSHKeyItem] = {}
 
     def _cleanup_prompt(self) -> None:
-        self.banner_style = "success"
-        self.banner_text = ""
+        self.__banner_style = "success"
+        self.__banner_text = ""
 
     def _success_prompt(self, text: str) -> None:
-        self.banner_style = "success"
-        self.banner_text = text
+        self.__banner_style = "success"
+        self.__banner_text = text
 
     def _danger_prompt(self, text: str) -> None:
-        self.banner_style = "danger"
-        self.banner_text = text
+        self.__banner_style = "danger"
+        self.__banner_text = text
 
     def _prompt(self, text: str) -> None:
-        self.banner_style = "info"
-        self.banner_text = text
+        self.__banner_style = "info"
+        self.__banner_text = text
 
     @event.on_populate
     def on_populate(self) -> None:
@@ -572,23 +589,31 @@ class SSHKeyComponent(Component):
         access_control: AccessControl = self.session[AccessControl]
         if profile := access_control.validate(user=self.session[EndUser]):
             for name in (ring := SSHKeyRing(base=profile.workspace)):
-                self.ssh_keys[name] = SSHKeyItem.create(profile.username, name, ring[name])  # noqa:E501
+                self.__add_item(SSHKeyItem.create(profile.username, name, ring[name]))  # noqa:E501
 
-    async def _on_press_create_item(self) -> None:
+    def __add_item(self, item: SSHKeyItem) -> None:
+        if (name := item.name) not in self.__ssh_keys:
+            self.__ssh_keys[name] = item
+
+    def __del_item(self, name: str) -> None:
+        if name in self.__ssh_keys:
+            del self.__ssh_keys[name]
+
+    async def create_item(self) -> None:
         new_item: SSHKeyItem = SSHKeyItem.empty()
 
-        async def refresh_page() -> None:
+        async def refresh() -> None:
             if name := new_item.name:
                 access_control: AccessControl = self.session[AccessControl]
                 if profile := access_control.validate(user=self.session[EndUser]):  # noqa:E501
-                    ring = SSHKeyRing(base=profile.workspace)
-                    self.ssh_keys[name] = SSHKeyItem.create(profile.username, name, ring[name])  # noqa:E501
+                    pair: SSHKeyPair = SSHKeyRing(base=profile.workspace)[name]
+                    self.__add_item(SSHKeyItem.create(profile.username, name, pair))  # noqa:E501
                     self._success_prompt(f"SSH key '{name}' generated")
             await dialog.close(None)
             self.force_refresh()
 
         def build_dialog_content() -> Component:
-            return CreateComponent(item=new_item, on_finish=refresh_page)
+            return CreateComponent(item=new_item, on_finish=refresh)
 
         # Show the dialog
         dialog = await self.session.show_custom_dialog(
@@ -603,21 +628,21 @@ class SSHKeyComponent(Component):
         # Wait for the user to select an option
         await dialog.wait_for_close()
 
-    async def _on_press_upload_item(self) -> None:
+    async def upload_item(self) -> None:
         new_item: SSHKeyItem = SSHKeyItem.empty()
 
-        async def refresh_page() -> None:
+        async def refresh() -> None:
             if name := new_item.name:
                 access_control: AccessControl = self.session[AccessControl]
                 if profile := access_control.validate(user=self.session[EndUser]):  # noqa:E501
-                    ring = SSHKeyRing(base=profile.workspace)
-                    self.ssh_keys[name] = SSHKeyItem.create(profile.username, name, ring[name])  # noqa:E501
+                    pair: SSHKeyPair = SSHKeyRing(base=profile.workspace)[name]
+                    self.__add_item(SSHKeyItem.create(profile.username, name, pair))  # noqa:E501
                     self._success_prompt(f"SSH key '{name}' saved")
             await dialog.close(None)
             self.force_refresh()
 
         def build_dialog_content() -> Component:
-            return UploadComponent(item=new_item, on_finish=refresh_page)
+            return UploadComponent(item=new_item, on_finish=refresh)
 
         # Show the dialog
         dialog = await self.session.show_custom_dialog(
@@ -632,15 +657,15 @@ class SSHKeyComponent(Component):
         # Wait for the user to select an option
         await dialog.wait_for_close()
 
-    async def _on_press_delete_item(self, name: str) -> None:
+    async def _delete_item(self, name: str) -> None:
         """Perform actions when the "Delete" button is pressed."""
 
         async def confirm_delete() -> None:
             access_control: AccessControl = self.session[AccessControl]
             if profile := access_control.validate(user=self.session[EndUser]):
                 if SSHKeyRing(base=profile.workspace).remove(name):
-                    del self.ssh_keys[name]
                     self._success_prompt(f"Successfully deleted {name}")
+                    self.__del_item(name)
                 else:
                     self._danger_prompt(f"Failed to delete {name}")
             else:
@@ -697,54 +722,15 @@ class SSHKeyComponent(Component):
         await dialog.wait_for_close()
 
     def build(self) -> Component:
-        """Builds the component to be rendered."""
-
-        # Then unpack the list to pass the children to the ListView
         return Column(
-            Navbar(
-                left_children=[
-                    Link(
-                        content=IconButton(
-                            icon="material/lists:fill",
-                            style="plain-text",
-                            min_size=2.5,
-                        ),
-                        target_url="/public",
-                    ),
-                ],
-                right_children=[
-                    Button(
-                        content="Create",
-                        icon="material/add",
-                        color="success",
-                        shape="rounded",
-                        style="minor",
-                        on_press=self._on_press_create_item,
-                    ),
-                    Button(
-                        content="Upload",
-                        icon="material/upload",
-                        color="secondary",
-                        shape="rounded",
-                        style="minor",
-                        on_press=self._on_press_upload_item,
-                    ),
-                ]
-            ),
-            Column(
-                Text(text="SSH keys", style="heading2"),
-                Banner(self.banner_text, style=self.banner_style),
-                *[
-                    KeyItemComponent(
-                        item=item,
-                        on_delete=partial(self._on_press_delete_item, name),
-                    )
-                    for name, item in self.ssh_keys.items()
-                ],
-                # align at the top
-                align_y=0.0,
-                grow_y=True,
-                spacing=1.0,
-                margin_x=3.0,
-            ),
+            Text(text="SSH keys", style="heading2"),
+            Banner(self.__banner_text, style=self.__banner_style),
+            *[
+                KeyComponent(
+                    item=item,
+                    on_delete=partial(self._delete_item, name),
+                )
+                for name, item in self.__ssh_keys.items()
+            ],
+            spacing=1.0,
         )

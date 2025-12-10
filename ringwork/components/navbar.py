@@ -1,7 +1,7 @@
 # coding:utf-8
 
-from typing import Iterable
 from typing import List
+from typing import Literal
 
 from rio import Button
 from rio import Component
@@ -11,106 +11,141 @@ from rio import Rectangle
 from rio import Row
 from rio import Spacer
 from rio import event
-from xpw import Profile
 
 from ringwork.components.access import AccessControl
 from ringwork.components.access import EndUser
 
 
-class Navbar(Component):
-    """A navbar with a fixed position and responsive width."""
+class NavbarIconButton(Component):
 
-    left_children: Iterable[Component]
-    right_children: Iterable[Component]
+    icon: str
+    style: Literal["colored-text", "plain-text"]
+
+    def build(self) -> Component:
+        return IconButton(icon=self.icon, style=self.style)
+
+
+class NavbarLinkIconButton(Component):
+
+    icon: str
+    target_url: str
+
+    def build(self) -> Component:
+        selected: bool = self.session.active_page_url.raw_path == self.target_url  # noqa:E501
+
+        return Link(
+            content=NavbarIconButton(
+                icon=self.icon,
+                style="colored-text" if selected else "plain-text",
+            ),
+            target_url=self.target_url,
+        )
+
+
+class NavbarLeftComponent(Component):
+
+    def __post_init__(self) -> None:
+        self.__children: List[Component] = []
+
+    def add(self, child: Component) -> None:
+        self.__children.append(child)
+
+    def new_button(self, icon: str, target_url: str) -> Component:
+        return NavbarLinkIconButton(icon=icon, target_url=target_url)
+
+    def build(self) -> Component:
+        return Row(
+            self.new_button(icon="material/home:fill", target_url="/"),
+            self.new_button(icon="material/key:fill", target_url="/ssh"),
+            self.new_button(icon="material/checklist:fill", target_url="/public"),
+            *self.__children,
+            spacing=1.0,
+            margin=0.0,
+        )
+
+
+class NavbarRightComponent(Component):
+
+    def __post_init__(self) -> None:
+        self.__children: List[Component] = []
+
+    def add(self, child: Component) -> None:
+        self.__children.append(child)
+
+    async def _on_logout(self) -> None:
+        access_control: AccessControl = self.session[AccessControl]
+        if access_control.deactivate(user=self.session[EndUser]):
+            self.session.navigate_to("/")
+
+    async def _on_login(self) -> None:
+        self.session.navigate_to("/login")
+
+    def build(self) -> Component:
+        access_control: AccessControl = self.session[AccessControl]
+        if not access_control.validate(user=self.session[EndUser]):
+            button = Button(
+                content="Login",
+                icon="material/login",
+                shape="rounded",
+                color="secondary",
+                style="minor",
+                on_press=self._on_login,
+            )
+        else:
+            button = Button(
+                content="Logout",
+                icon="material/logout",
+                shape="rounded",
+                color="danger",
+                style="minor",
+                on_press=self._on_logout,
+            )
+
+        return Row(
+            *self.__children,
+            button,
+            spacing=1.0,
+            margin_y=0.5,
+        )
+
+
+class Navbar(Component):
+
+    def __post_init__(self) -> None:
+        self.__left_component: NavbarLeftComponent = NavbarLeftComponent()
+        self.__right_component: NavbarRightComponent = NavbarRightComponent()
+
+    @property
+    def left(self) -> NavbarLeftComponent:
+        return self.__left_component
+
+    @property
+    def right(self) -> NavbarRightComponent:
+        return self.__right_component
 
     @event.on_page_change
     def on_page_change(self) -> None:
         self.force_refresh()
 
-    async def on_logout(self) -> None:
-        access_control: AccessControl = self.session[AccessControl]
-        if access_control.deactivate(user=self.session[EndUser]):
-            self.session.navigate_to("/")
-
-    async def on_login(self) -> None:
-        self.session.navigate_to("/login")
-
     def build(self) -> Component:
-        # Determine the layout based on the window width
-        desktop_layout = self.session.window_width > 30
-
-        # Create the content of the navbar.
-        # First we create a row with a certain spacing and margin.
-        # We can use the `.add()` method to add components by condition to
-        # the row.
-
-        left_content: List[Component] = [
-            Link(
-                content=IconButton(
-                    icon="material/home:fill",
-                    style="plain-text",
-                    min_size=2.5,
-                ),
-                target_url="/",
-            )
-        ]
-
-        access_control: AccessControl = self.session[AccessControl]
-        if (profile := access_control.validate(user=self.session[EndUser])):
-            left_content.append(
-                Link(
-                    content=IconButton(
-                        icon="material/settings:fill",
-                        style="plain-text",
-                        min_size=2.5,
-                    ),
-                    target_url="/settings",
-                )
-            )
-
-        for child in self.left_children:
-            left_content.append(child)
-
-        navbar_content = Row(
-            *left_content,
-            spacing=1.0,
-            margin=1.0,
-        )
-
-        navbar_content.add(Spacer(grow_x=True))
-
-        for child in self.right_children:
-            navbar_content.add(child)
-
-        if not isinstance(profile, Profile):
-            # Login button
-            navbar_content.add(
-                Button(
-                    content="Login",
-                    icon="material/login",
-                    shape="rounded",
-                    color="secondary",
-                    style="minor",
-                    on_press=self.on_login,
-                )
-            )
-
-        # Use a rectangle for visual separation
         return Rectangle(
-            # Use the content we've built up by conditions
-            content=navbar_content,
-            # Set the fill of the rectangle to the neutral color of the theme
+            content=Row(
+                self.__left_component,
+                Spacer(grow_x=True),
+                self.__right_component,
+                grow_x=True,
+                spacing=1.0,
+                margin_x=1.0,
+                margin_y=0.5,
+            ),
+            min_width=self.session.window_width - 4.0,
+            grow_x=True,
+            align_x=0.0,
+            align_y=0.0,
+            margin=2.0,
             fill=self.session.theme.neutral_color,
-            # Round the corners
             corner_radius=self.session.theme.corner_radius_medium,
-            # Add a shadow to make the navbar stand out above other content
             shadow_radius=0.8,
-            shadow_color=self.session.theme.shadow_color,
             shadow_offset_y=0.2,
-            # Overlay assigns the entire screen to its child component.
-            # Since the navbar isn't supposed to take up all space, align
-            # it.
-            align_y=0,
-            margin_x=2 if desktop_layout else 0.5,
-            margin_y=2,
+            shadow_color=self.session.theme.shadow_color,
         )

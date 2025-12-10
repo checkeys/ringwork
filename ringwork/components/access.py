@@ -23,7 +23,7 @@ def Restrict(event: GuardEvent) -> Optional[str]:
     except KeyError:
         pass
 
-    return "/public"
+    return "/login"
 
 
 @dataclass

@@ -3,16 +3,26 @@
 from rio import Column
 from rio import Component
 from rio import PageView
+from rio import Text
 from rio import page
 
 from ringwork.components.access import Restrict
-from ringwork.components.sshkey import SSHKeyComponent
+from ringwork.components.layout import NavbarLayout
 
 
-@page(name="Home", url_segment="", guard=Restrict)
-class HomePage(Component):
+@page(name="Overview", url_segment="", guard=Restrict)
+class OverviewPage(Component):
+
     def build(self) -> Component:
-        return SSHKeyComponent()
+        return NavbarLayout(
+            content=Column(
+                Text(text="Overview", style="heading2"),
+                *[
+                    # TODO
+                ],
+                spacing=1.0,
+            ),
+        )
 
 
 class MainPage(Component):

@@ -9,8 +9,8 @@ from xpw import Profile
 
 
 class PublicKeyAPI:
-    DOWNLOAD_PATH = "/api/pub/download/{uid}/{kid}"
-    RAW_PATH = "/api/pub/raw/{uid}/{kid}"
+    DOWNLOAD_PATH = "/api/ssh/pub/download/{uid}/{kid}"
+    RAW_PATH = "/api/ssh/pub/raw/{uid}/{kid}"
 
     def __init__(self, accounts: Account):
         self.__accounts: Account = accounts
