@@ -723,7 +723,7 @@ class ListComponent(Component):
 
     def build(self) -> Component:
         return Column(
-            Text(text="SSH keys", style="heading2"),
+            Text(text="SSH Keys", style="heading2"),
             Banner(self.__banner_text, style=self.__banner_style),
             *[
                 KeyComponent(

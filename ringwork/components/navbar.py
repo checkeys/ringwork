@@ -13,6 +13,7 @@ from rio import Link
 from rio import Rectangle
 from rio import Row
 from rio import Spacer
+from rio import Tooltip
 from rio import event
 
 from ringwork.components.access import AccessControl
@@ -26,7 +27,7 @@ class NavbarButton(Component):
     shape: Literal["pill", "rounded", "rectangle"]
     style: Literal["major", "minor", "colored-text", "plain-text"]
     color: ColorSet = "keep"
-    on_press: EventHandler[()] = None
+    on_press: EventHandler[[]] = None
 
     def build(self) -> Component:
         return Button(
@@ -42,11 +43,13 @@ class NavbarButton(Component):
 class NavbarIconButton(Component):
 
     icon: str
+    content: str = ""
     style: Literal["major", "minor", "colored-text", "plain-text"] = "plain-text"  # noqa:E501
     color: ColorSet = "keep"
+    on_press: EventHandler[[]] = None
     target_url: Optional[str] = None
 
-    def build(self) -> Component:
+    def __build_button(self) -> Component:
         if (target_url := self.target_url) is not None:
             selected: bool = self.session.active_page_url.raw_path == target_url  # noqa:E501
             return Link(
@@ -57,7 +60,10 @@ class NavbarIconButton(Component):
                 target_url=target_url,
             )
 
-        return IconButton(icon=self.icon, style=self.style, color=self.color)
+        return IconButton(icon=self.icon, style=self.style, color=self.color, on_press=self.on_press)  # noqa:E501
+
+    def build(self) -> Component:
+        return Tooltip(anchor=self.__build_button(), tip=self.content) if self.content else self.__build_button()  # noqa:E501
 
 
 class NavbarCommonButton(Component):
@@ -66,17 +72,28 @@ class NavbarCommonButton(Component):
     content: str
     style: Literal["major", "minor", "colored-text", "plain-text"]
     color: ColorSet = "keep"
-    on_press: EventHandler[()] = None
+    on_press: EventHandler[[]] = None
 
     def build(self) -> Component:
-        return NavbarButton(
-            content=self.content,
-            icon=self.icon,
-            shape="rounded",
-            style=self.style,
-            color=self.color,
-            on_press=self.on_press,
-        )
+        if self.session.window_height > 50.0:
+            return NavbarButton(
+                content=self.content,
+                icon=self.icon,
+                shape="rounded",
+                style=self.style,
+                color=self.color,
+                on_press=self.on_press,
+            )
+        else:
+            return Tooltip(
+                anchor=NavbarIconButton(
+                    icon=self.icon,
+                    style="colored-text",
+                    color=self.color,
+                    on_press=self.on_press,
+                ),
+                tip=self.content,
+            )
 
 
 class NavbarLeftComponent(Component):
@@ -87,14 +104,14 @@ class NavbarLeftComponent(Component):
     def add(self, child: Component) -> None:
         self.__children.append(child)
 
-    def new_button(self, icon: str, target_url: str) -> Component:
-        return NavbarIconButton(icon=icon, target_url=target_url)
+    def new_button(self, icon: str, content: str, target_url: str) -> Component:  # noqa:E501
+        return NavbarIconButton(icon=icon, content=content, target_url=target_url)  # noqa:E501
 
     def build(self) -> Component:
         return Row(
-            self.new_button(icon="material/home:fill", target_url="/"),
-            self.new_button(icon="material/key:fill", target_url="/ssh"),
-            self.new_button(icon="material/checklist:fill", target_url="/public"),  # noqa:E501
+            self.new_button(icon="material/home", content="Home", target_url="/"),  # noqa:E501
+            self.new_button(icon="material/key", content="SSH Keys", target_url="/ssh"),  # noqa:E501
+            self.new_button(icon="material/checklist", content="Public List", target_url="/public"),  # noqa:E501
             *self.__children,
             spacing=1.0,
             margin=0.0,
@@ -120,19 +137,17 @@ class NavbarRightComponent(Component):
     def build(self) -> Component:
         access_control: AccessControl = self.session[AccessControl]
         if not access_control.validate(user=self.session[EndUser]):
-            button = Button(
+            button = NavbarCommonButton(
                 content="Login",
                 icon="material/login",
-                shape="rounded",
                 color="secondary",
                 style="minor",
                 on_press=self._on_login,
             )
         else:
-            button = Button(
+            button = NavbarCommonButton(
                 content="Logout",
                 icon="material/logout",
-                shape="rounded",
                 color="danger",
                 style="minor",
                 on_press=self._on_logout,

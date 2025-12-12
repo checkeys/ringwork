@@ -9,6 +9,7 @@ from rio import Text
 from rio import page
 
 from ringwork.components.layout import NavbarLayout
+from ringwork.components.navbar import NavbarCommonButton
 
 
 def Restrict(event: GuardEvent) -> Optional[str]:
@@ -19,25 +20,21 @@ def Restrict(event: GuardEvent) -> Optional[str]:
 class PublicListPage(Component):
 
     def build(self) -> Component:
-        return NavbarLayout(
-            # navbar=Navbar(
-            #     children=[
-            #         Button(
-            #             content="Create",
-            #             icon="material/add",
-            #             color="success",
-            #             shape="rounded",
-            #             style="minor",
-            #             on_press=self._on_press_create_item,
-            #         ),
-            #     ]
-            # ),
-            content=Column(
-                Text(text="Public List", style="heading2"),
-                # Banner(self.banner_text, style=self.banner_style),
-                *[
-                    # TODO
-                ],
-                spacing=1.0,
-            ),
+        layout = NavbarLayout(content=Column(
+            Text(text="Public List", style="heading2"),
+            # Banner(self.banner_text, style=self.banner_style),
+            *[
+                # TODO
+            ],
+            spacing=1.0,
+        ))
+        layout.navbar.right.add(
+            NavbarCommonButton(
+                icon="material/add",
+                content="Create",
+                color="success",
+                style="minor",
+                # on_press=self._on_press_create_item,
+            )
         )
+        return layout
