@@ -1,11 +1,11 @@
 # coding:utf-8
 
-from rio import Button
 from rio import Component
 from rio import page
 
 from ringwork.components.access import Restrict
 from ringwork.components.layout import NavbarLayout
+from ringwork.components.navbar import NavbarCommonButton
 from ringwork.components.sshkey import ListComponent
 
 
@@ -16,22 +16,19 @@ class SSHKeyPage(Component):
         content = ListComponent()
         layout = NavbarLayout(content=content)
         layout.navbar.right.add(
-            Button(
-                content="Upload",
+            NavbarCommonButton(
                 icon="material/upload",
+                content="Upload",
                 color="secondary",
-                shape="rounded",
                 style="minor",
                 on_press=content.upload_item,
             )
-
         )
         layout.navbar.right.add(
-            Button(
-                content="Create",
+            NavbarCommonButton(
                 icon="material/add",
+                content="Create",
                 color="success",
-                shape="rounded",
                 style="minor",
                 on_press=content.create_item,
             )

@@ -2,9 +2,12 @@
 
 from typing import List
 from typing import Literal
+from typing import Optional
 
 from rio import Button
+from rio import ColorSet
 from rio import Component
+from rio import EventHandler
 from rio import IconButton
 from rio import Link
 from rio import Rectangle
@@ -16,29 +19,63 @@ from ringwork.components.access import AccessControl
 from ringwork.components.access import EndUser
 
 
+class NavbarButton(Component):
+
+    icon: str
+    content: str
+    shape: Literal["pill", "rounded", "rectangle"]
+    style: Literal["major", "minor", "colored-text", "plain-text"]
+    color: ColorSet = "keep"
+    on_press: EventHandler[()] = None
+
+    def build(self) -> Component:
+        return Button(
+            content=self.content,
+            icon=self.icon,
+            shape=self.shape,
+            style=self.style,
+            color=self.color,
+            on_press=self.on_press,
+        )
+
+
 class NavbarIconButton(Component):
 
     icon: str
-    style: Literal["colored-text", "plain-text"]
+    style: Literal["major", "minor", "colored-text", "plain-text"] = "plain-text"  # noqa:E501
+    color: ColorSet = "keep"
+    target_url: Optional[str] = None
 
     def build(self) -> Component:
-        return IconButton(icon=self.icon, style=self.style)
+        if (target_url := self.target_url) is not None:
+            selected: bool = self.session.active_page_url.raw_path == target_url  # noqa:E501
+            return Link(
+                content=IconButton(
+                    icon=self.icon,
+                    style="colored-text" if selected else "plain-text",
+                ),
+                target_url=target_url,
+            )
+
+        return IconButton(icon=self.icon, style=self.style, color=self.color)
 
 
-class NavbarLinkIconButton(Component):
+class NavbarCommonButton(Component):
 
     icon: str
-    target_url: str
+    content: str
+    style: Literal["major", "minor", "colored-text", "plain-text"]
+    color: ColorSet = "keep"
+    on_press: EventHandler[()] = None
 
     def build(self) -> Component:
-        selected: bool = self.session.active_page_url.raw_path == self.target_url  # noqa:E501
-
-        return Link(
-            content=NavbarIconButton(
-                icon=self.icon,
-                style="colored-text" if selected else "plain-text",
-            ),
-            target_url=self.target_url,
+        return NavbarButton(
+            content=self.content,
+            icon=self.icon,
+            shape="rounded",
+            style=self.style,
+            color=self.color,
+            on_press=self.on_press,
         )
 
 
@@ -51,13 +88,13 @@ class NavbarLeftComponent(Component):
         self.__children.append(child)
 
     def new_button(self, icon: str, target_url: str) -> Component:
-        return NavbarLinkIconButton(icon=icon, target_url=target_url)
+        return NavbarIconButton(icon=icon, target_url=target_url)
 
     def build(self) -> Component:
         return Row(
             self.new_button(icon="material/home:fill", target_url="/"),
             self.new_button(icon="material/key:fill", target_url="/ssh"),
-            self.new_button(icon="material/checklist:fill", target_url="/public"),
+            self.new_button(icon="material/checklist:fill", target_url="/public"),  # noqa:E501
             *self.__children,
             spacing=1.0,
             margin=0.0,
