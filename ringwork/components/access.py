@@ -62,6 +62,7 @@ class AccessControl():
         return self.accounts.fetch(session_id=user.session_id, secret_key=user.secret_key)  # noqa:E501
 
     async def on_app_start(self, app: App) -> None:
+        app.default_attachments.append(self.NOBODY)
         app.default_attachments.append(self)
 
     async def on_session_start(self, rio_session: Session) -> None:

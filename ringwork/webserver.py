@@ -39,7 +39,7 @@ def create_app(access_control: Optional[AccessControl] = None) -> App:
         on_app_start=access_control.on_app_start,
         # This function will be called each time a user connects
         on_session_start=access_control.on_session_start,
-        default_attachments=[AccessControl.NOBODY],
+        # default_attachments=[AccessControl.NOBODY],
         assets_dir=Path(__file__).parent / "assets",
         theme=theme,
     )
