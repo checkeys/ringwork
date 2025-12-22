@@ -93,7 +93,7 @@ class KeyComponent(Component):
                     style="colored-text",
                     min_size=3.0,
                 ),
-                target_url=PublicKeyAPI.RAW_PATH.format(uid=self.item.user, kid=self.item.name),  # noqa:E501
+                target_url=PublicKeyAPI.get_raw_url(uid=self.item.user, kid=self.item.name),  # noqa:E501
                 open_in_new_tab=True,
             ),
             tip="Display public key",
@@ -194,7 +194,7 @@ class KeyComponent(Component):
                                 style="plain-text",
                                 min_size=3.0,
                             ),
-                            target_url=PublicKeyAPI.DOWNLOAD_PATH.format(uid=self.item.user, kid=self.item.name),  # noqa:E501
+                            target_url=PublicKeyAPI.get_download_url(uid=self.item.user, kid=self.item.name),  # noqa:E501
                             open_in_new_tab=True,
                         ),
                         tip="Download public key file",

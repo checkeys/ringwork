@@ -1,6 +1,9 @@
 # coding:utf-8
 
+from urllib.parse import urlencode
+
 from fastapi.exceptions import HTTPException
+from fastapi.param_functions import Query
 from fastapi.responses import PlainTextResponse
 from xkeys_ssh import SSHKeyPair
 from xkeys_ssh import SSHKeyRing
@@ -9,8 +12,8 @@ from xpw import Profile
 
 
 class PublicKeyAPI:
-    DOWNLOAD_PATH = "/api/ssh/pub/download/{uid}/{kid}"
-    RAW_PATH = "/api/ssh/pub/raw/{uid}/{kid}"
+    DOWNLOAD_PATH = "/api/ssh/pub/download"
+    RAW_PATH = "/api/ssh/pub/raw"
 
     def __init__(self, accounts: Account):
         self.__accounts: Account = accounts
@@ -19,7 +22,15 @@ class PublicKeyAPI:
     def accounts(self) -> Account:
         return self.__accounts
 
-    async def get(self, uid: str, kid: str) -> PlainTextResponse:
+    @classmethod
+    def get_raw_url(cls, uid: str, kid: str) -> str:
+        return f"{cls.RAW_PATH}?{urlencode({'uid': uid, 'kid': kid})}"
+
+    @classmethod
+    def get_download_url(cls, uid: str, kid: str) -> str:
+        return f"{cls.DOWNLOAD_PATH}?{urlencode({'uid': uid, 'kid': kid})}"
+
+    async def get(self, uid: str = Query(), kid: str = Query()) -> PlainTextResponse:  # noqa:E501
         profile: Profile = Profile(self.accounts, username=uid)
         keyring: SSHKeyRing = SSHKeyRing(base=profile.workspace)
 
@@ -34,7 +45,7 @@ class PublicKeyAPI:
 
         return PlainTextResponse(content=public)
 
-    async def download(self, uid: str, kid: str) -> PlainTextResponse:
+    async def download(self, uid: str = Query(), kid: str = Query()) -> PlainTextResponse:  # noqa:E501
         response = await self.get(uid=uid, kid=kid)
         response.headers["Cache-Control"] = "no-cache"
         response.headers["Content-Disposition"] = f"attachment; filename={kid}.pub"  # noqa:E501
