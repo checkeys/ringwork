@@ -26,4 +26,4 @@ class OverviewPage(Component):
 
 class MainPage(Component):
     def build(self) -> Component:
-        return Column(PageView(grow_y=True))
+        return PageView(grow_y=True)
